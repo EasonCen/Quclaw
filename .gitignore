@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# uv
+.uv-cache/
+
+# Local environment / secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Workspace runtime state
+default_workspace/config.user.yaml
+default_workspace/config.runtime.yaml
+default_workspace/.event/
+default_workspace/.history/
+default_workspace/.logs/
+workspace/config.user.yaml
+workspace/config.runtime.yaml
+workspace/.event/
+workspace/.history/
+workspace/.logs/
+
+# Build
+build/
+dist/
+*.egg-info/
+*.egg
+
+# IDE
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+
+# Test / tooling caches
+.benchmarks/
+.coverage
+.coverage.*
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
