@@ -179,6 +179,34 @@ class Config(BaseModel):
                 setattr(self, field_name, self.workspace / path)
         return self
 
+    def template_vars(self) -> dict[str, str]:
+        """Return config-backed values available to workspace templates."""
+        field_names = (
+            "workspace",
+            "agents_path",
+            "skills_path",
+            "crons_path",
+            "history_path",
+            "logging_path",
+            "event_path",
+            "default_agent",
+        )
+        values = {
+            field_name: self._format_template_value(getattr(self, field_name))
+            for field_name in field_names
+        }
+        values["memories_path"] = self._format_template_value(
+            self.workspace / "memories"
+        )
+        return values
+
+    @staticmethod
+    def _format_template_value(value: Any) -> str:
+        """Format template values for markdown and tool arguments."""
+        if isinstance(value, Path):
+            return value.resolve().as_posix()
+        return str(value)
+
     @classmethod
     def load(cls, workspace_dir: Path) -> "Config":
         """Load configuration from workspace directory."""

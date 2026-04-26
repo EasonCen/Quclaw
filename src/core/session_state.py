@@ -47,7 +47,7 @@ class SessionState:
 
     def build_messages(self) -> list[Message]:
         """Build messages list with system prompt."""
-        system_prompt = self.agent.agent_def.agent_md
+        system_prompt = self.shared_context.prompt_builder.build(self)
         if not system_prompt:
             return list(self.messages)
         messages: list[Message] = [{"role": "system", "content": system_prompt}]

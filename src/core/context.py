@@ -5,6 +5,7 @@ from core.commands.registry import CommandRegistry
 from core.cron_loader import CronLoader
 from core.history import HistoryStore
 from core.skill_loader import SkillLoader
+from core.prompt_builder import PromptBuilder
 from core.eventbus import EventBus
 from core.routing import RoutingTable
 from utils.config import Config
@@ -23,6 +24,7 @@ class SharedContext:
     command_registry: CommandRegistry
     cron_loader: CronLoader
     routing_table: RoutingTable
+    prompt_builder: PromptBuilder
     channels: list[Channel[Any]]
     eventbus: EventBus
     websocket_worker: "WebSocketWorker | None" 
@@ -35,6 +37,7 @@ class SharedContext:
         self.cron_loader = CronLoader.from_config(config)
         self.command_registry = CommandRegistry.with_builtins()
         self.routing_table = RoutingTable(self)
+        self.prompt_builder = PromptBuilder(self)
         
         if channels is not None:
             self.channels = channels
