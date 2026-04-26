@@ -29,7 +29,7 @@ class EventSource(ABC):
     @property
     def is_platform(self) -> bool:
         return self._namespace.startswith("platform-")
-    
+
     @property
     def is_agent(self) -> bool:
         return self._namespace == "agent"
@@ -37,7 +37,7 @@ class EventSource(ABC):
     @property
     def is_cron(self) -> bool:
         return self._namespace == "cron"
-    
+
     @property
     def platform_name(self) -> str | None:
         if not self.is_platform:
@@ -73,7 +73,7 @@ class AgentEventSource(EventSource):
 
     def __str__(self) -> str:
         return f"agent:{self.agent_id}"
-    
+
     @classmethod
     def from_string(cls, s: str) -> "AgentEventSource":
         _, agent_id = s.split(":", 1)
@@ -86,12 +86,12 @@ class CliEventSource(EventSource):
     _namespace =  "platform-cli"
     user_id: str = "cli-user"
     conversation_id: str | None = None
-    
+
     def __str__(self) -> str:
         if self.conversation_id is None:
             return f"{self._namespace}:{self.user_id}"
         return f"{self._namespace}:{self.user_id}/{self.conversation_id}"
-    
+
     @classmethod
     def from_string(cls, s: str) -> "CliEventSource":
         _, payload = s.split(":", 1)
@@ -100,10 +100,27 @@ class CliEventSource(EventSource):
 
         user_id, conversation_id = payload.split("/", 1)
         return cls(user_id=user_id, conversation_id=conversation_id)
-    
+
     @property
     def platform_name(self) -> str:
         return "cli"
+
+
+@dataclass
+class CronEventSource(EventSource):
+    """Source for cron-triggered events."""
+
+    _namespace = "cron"
+    cron_id: str
+
+    def __str__(self) -> str:
+        return f"{self._namespace}:{self.cron_id}"
+
+    @classmethod
+    def from_string(cls, s: str) -> "CronEventSource":
+        _, cron_id = s.split(":", 1)
+        return cls(cron_id=cron_id)
+
 
 @dataclass
 class WebSocketEventSource(EventSource):
@@ -172,18 +189,18 @@ class Event:
                     kwargs[k] = EventSource.from_string(v)
                 else:
                     kwargs[k] = v
-        
+
         return cls(**kwargs)
-    
-     
+
+
 @dataclass
 class InboundEvent(Event):
-    """Event for external work entering the system (platforms, cron, retry)"""
-    
+    """Event for external work entering the system from platforms."""
+
     retry_count: int = 0
 
 
-    
+
 @dataclass
 class OutboundEvent(Event):
     """Event for agent responses to deliver to platforms."""
@@ -191,11 +208,29 @@ class OutboundEvent(Event):
     retry_count: int = 0
     error: str | None = None
 
+@dataclass
+class DispatchEvent(Event):
+    """Event for internal work dispatched to an agent."""
+
+    target_agent_id: str | None = None
+
+
+@dataclass
+class DispatchResultEvent(Event):
+    """Event for result of a dispatched job."""
+
+    error: str | None = None
+
+
+
+
 
 # Registry mapping event class names to event classes
 _EVENT_CLASSES: dict[str, type[Event]] = {
     "InboundEvent": InboundEvent,
     "OutboundEvent": OutboundEvent,
+    "DispatchEvent": DispatchEvent,
+    "DispatchResultEvent": DispatchResultEvent,
 }
 
 def serialize_event(event: Event) -> dict[str, Any]:
@@ -205,7 +240,7 @@ def serialize_event(event: Event) -> dict[str, Any]:
 def deserialize_event(data: dict[str, Any]) -> Event:
     """Deserialize dict to appropriate event type"""
     event_type: str = data.get("type", "")
-    
+
     event_class = _EVENT_CLASSES.get(event_type)
     if event_class is None:
         raise ValueError(f"Unknown event type: {event_type}")

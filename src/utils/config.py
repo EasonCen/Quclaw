@@ -141,6 +141,7 @@ class Config(BaseModel):
     default_agent: str
     agents_path: Path = Field(default=Path("agents"))
     skills_path: Path = Field(default=Path("skills"))
+    crons_path: Path = Field(default=Path("crons"))
     logging_path: Path = Field(default=Path(".logs"))
     websearch: TavilySearchConfig | None = None
     webread: TavilyWebReadConfig | None = None 
@@ -160,6 +161,7 @@ class Config(BaseModel):
         for field_name in (
             "agents_path",
             "skills_path",
+            "crons_path",
             "history_path",
             "logging_path",
             "event_path",

@@ -108,6 +108,7 @@ class CommandRegistry:
             AgentCommand,
             CompactCommand,
             ContextCommand,
+            CronsCommand,
             HelpCommand,
             SessionCommand,
             SkillsCommand,
@@ -124,6 +125,7 @@ class CommandRegistry:
         registry.register(AgentCommand())
         registry.register(RouteCommand())
         registry.register(BindingsCommand())
+        registry.register(CronsCommand())
         return registry
 
     @staticmethod

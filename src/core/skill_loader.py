@@ -1,6 +1,7 @@
 """Skill loader for discovering and loading skills."""
 
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -48,7 +49,7 @@ class SkillLoader:
                 id=def_id,
                 name=frontmatter["name"],  # type: ignore[misc]
                 description=frontmatter["description"],  # type: ignore[misc]
-                content=body.strip(),
+                content=self._render_content(body.strip()),
             )
         except ValidationError as e:
             logger.warning(f"Invalid skill '{def_id}': {e}")
@@ -56,6 +57,38 @@ class SkillLoader:
         except KeyError as e:
             logger.warning(f"Missing required field in skill '{def_id}': {e}")
             return None
+
+    def _render_content(self, content: str) -> str:
+        """Render config-backed placeholders inside skill instructions."""
+        rendered = content
+        for key, value in self._template_vars().items():
+            rendered = rendered.replace(f"{{{{{key}}}}}", value)
+        return rendered
+
+    def _template_vars(self) -> dict[str, str]:
+        """Return workspace paths available to SKILL.md files."""
+        field_names = (
+            "workspace",
+            "agents_path",
+            "skills_path",
+            "crons_path",
+            "history_path",
+            "logging_path",
+            "event_path",
+            "default_agent",
+        )
+        return {
+            field_name: self._format_template_value(getattr(self.config, field_name))
+            for field_name in field_names
+            if hasattr(self.config, field_name)
+        }
+
+    @staticmethod
+    def _format_template_value(value: Any) -> str:
+        """Format template values for use in markdown and tool arguments."""
+        if isinstance(value, Path):
+            return value.resolve().as_posix()
+        return str(value)
 
     def load_skill(self, skill_id: str) -> SkillDef:
         """Load full skill definition by ID."""

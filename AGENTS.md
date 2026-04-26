@@ -20,7 +20,7 @@
 1. 让智能体学会聊天、用工具、加载技能、保存对话、上网搜索。（已完成）
 2. 换成事件驱动架构，配置热重载，支持多平台接入。（已完成）
 3. WebSocket入口，让程序也能像 Telegram/Discord 一样给 agent 发消息。（已完成）
-4. 定时任务、智能路由、多智能体协作。（正在进行：当前先做 source-based multi-agent routing）
+4. 定时任务、智能路由、多智能体协作。（正在进行：定时任务）
 5. 并发控制和长期记忆。
 
 ## 代码规范
@@ -32,65 +32,54 @@
 
 ## 当前目标
 
-WebSocket 的基础上，加一个确定性的多 Agent 基础能力：根据消息来源 source，把新会话分配给不同 agent。
-> 当前阶段的 multi-agent 是 source-based routing，不是内容理解型 Router Agent，也不是 Agent 之间互相派活。
+Cron + Heartbeat
+> Agent 在你睡觉时候工作
 
-当前语义：
+定时任务——智能体按 cron 表达式自动跑。
+以前只有用户发消息才会触发 agent；现在开始，系统自己也可以按时间触发 agent。
 
-- **route 决定新会话归属**：`/route <source_pattern> <agent_id>` 表示匹配这个 source pattern 的新会话应该由哪个 agent 接手。
-- **session 归属不可变**：一个 session 创建后会固化为 `session_id -> agent_id`；后续恢复这个 session 时继续使用历史里的 agent，不中途换人格。
-- **source cache 只是续接指针**：runtime 里的 `source -> session_id` 只表示这个来源默认续接哪个会话；它不是 agent 归属本身。
-- **兜底使用默认智能体**：没有任何 binding 匹配时，使用 `default_agent`。
-
-这意味着当前阶段的链路是：
-
-```text
-source
-  -> source session cache 命中：恢复旧 session，沿用旧 agent
-  -> source session cache 未命中：RoutingTable.resolve(source)
-  -> 创建新 session
-  -> session 固化到某个 agent
-  -> AgentWorker 执行这个 session 对应的 agent
-```
-
-`/route` 的语义不是“迁移旧会话到新 agent”，而是“改变匹配 source 后续新会话的默认归属”。如果要让已有 source 立刻按新 route 生效，应重置匹配 source 的 `source -> session_id` cache，让下一条消息创建一个干净的新 session；旧 session 历史仍然保留。
-
-例子：
-
-```yaml
-routing:
-  bindings:
-    - value: platform-ws:coder/.*
-      agent: coder
-    - value: platform-telegram:.*
-      agent: Qu
-```
-
-```text
-platform-ws:coder/task-1  -> 新 session -> coder
-platform-telegram:123     -> 新 session -> Qu
-没匹配上                  -> 新 session -> default_agent
-```
-
-当前阶段不做：
-
-- 不根据消息内容自动判断任务类型。
-- 不让多个 agent 对同一条消息辩论。
-- 不让 agent A 主动 dispatch agent B。
-- 不把已有 session 的历史强行迁移到另一个 agent。
+- Cron 操作功能使用 **SKILL 系统**实现，而不是注册专用工具，这避免了工具注册表的膨胀。
 
 ### 关键组件
 
-- **AgentLoader** - 发现并加载多个智能体定义
-- **RoutingTable** - 正则匹配 + 分层优先级，把消息源路由到智能体
-- **Binding** - 源模式 + 智能体映射，自动计算优先级
-- **Commands** - `/route`、`/bindings`、`/agents` 管理路由
-- **Source Session Cache** - runtime 中的 `source -> session_id` 续接指针
+CronDef
+CronLoader
+CronWorker
+CronEventSource
+DispatchEvent
+DispatchResultEvent
 
-- **分层路由**：从最具体的规则开始匹配。
-- **兜底**：没匹配上就用默认智能体。
+- **CRON.md & CronDef** - Cron 任务定义
+- **CronWorker** - 每分钟检查待执行任务的后台工作器
+- **DispatchEvent** - 内部任务调度的事件类型
+- **DispatchResultEvent** - 调度任务返回的结果事件
+- **Cron-Ops Skill** - 用于创建、列出和删除定时 cron 任务的技能（实现为技能以避免额外的工具注册）
 
+### 需要注意
 
+不用 `InboundEvent`，而是 `DispatchEvent`
+
+以前用户消息是：`InboundEvent`
+意思是：外部用户/平台输入。
+
+cron 不是用户输入，它是系统内部调度任务，所以用了：`DispatchEvent`
+它表示：
+系统内部派发给某个 agent 的任务`AgentWorker` 也因此改了：
+
+```python
+self.context.eventbus.subscribe(InboundEvent, self.dispatch_event)
+self.context.eventbus.subscribe(DispatchEvent, self.dispatch_event)
+```
+
+于是 AgentWorker 可以处理两类任务：
+
+- 用户消息 `InboundEvent`
+- 后台任务 `DispatchEvent`
+
+### CRON vs HEARTBEAT
+
+- **HEARTBEAT**：只有一个，固定间隔跑，不管几点
+- **CRON**：可以有多个，按 cron 表达式跑，精确到分钟
 
 ## 后面再做的（不用管）
 

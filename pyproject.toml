@@ -16,6 +16,7 @@ dependencies = [
     "discord.py>=2.0.0",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
+    "croniter>=2.0.0",
 ]
 
 [project.scripts]

@@ -3,11 +3,13 @@ name: cron-ops
 description: Create, list, and delete scheduled cron jobs
 ---
 
-Help users manage scheduled cron jobs in pickle-bot.
+Help users manage scheduled cron jobs in Quclaw using the existing file and shell
+tools. Do not register or ask for a dedicated cron tool.
 
 ## What is a Cron?
 
-A cron is a scheduled task that runs at specified intervals. Crons are stored as `CRON.md` files at `{{crons_path}}/<name>/CRON.md`.
+A cron is a scheduled task that runs at specified intervals. Crons are stored as
+`CRON.md` files at `{{crons_path}}/<name>/CRON.md`.
 
 ## Schedule Syntax
 
@@ -18,14 +20,17 @@ Examples:
 - `*/30 * * * *` - Every 30 minutes
 - `0 0 * * 0` - Every Sunday at midnight
 
+Schedules must use exactly 5 fields. Keep the minimum granularity at 5 minutes
+or slower; `* * * * *` and `*/1 * * * *` are invalid for this project.
+
 ## One-Off Jobs
 
-Set `one_off: true` for jobs that should run only once. After execution, the cron is automatically deleted.
+Set `one_off: true` for jobs that should run only once. After dispatch, the cron is automatically deleted.
 
 Use this for:
-- Reminders at a specific future time
 - Scheduled one-time tasks
-- Delayed notifications
+- Delayed maintenance or data collection
+- Background checkpoints at a specific future time
 
 ## Operations
 
@@ -35,34 +40,47 @@ Use this for:
 2. Determine the schedule
 3. Ask which agent should run the task
 4. Ask for a brief description of what the cron does
-5. If the task should run only once (e.g., "remind me tomorrow"), set `one_off: true`
-6. Create the directory and CRON.md file
+5. If the task should run only once at a specific time, set `one_off: true`
+6. Pick a filesystem-safe cron name using lowercase letters, numbers, `-`, and `_`
+7. Use the `write` tool to create `{{crons_path}}/<cron-name>/CRON.md`
+
+When creating the file, pass the full path to `write`, set `create_dirs: true`,
+and write the complete CRON.md content from the template below.
 
 ### List
 
-Use `bash` to list directories:
+Use the `bash` tool to inspect the cron directory. Prefer this command shape:
 ```bash
-ls {{crons_path}}
+python -c "from pathlib import Path; base=Path(r'{{crons_path}}'); print('\n'.join(sorted(p.name for p in base.iterdir() if (p / 'CRON.md').is_file())) or 'No cron jobs configured.')"
 ```
+
+To show details for one cron, use the `read` tool on:
+`{{crons_path}}/<cron-name>/CRON.md`
 
 ### Delete
 
 1. List available crons
 2. Confirm which one to delete
-3. Use `bash` to remove:
+3. Use the `bash` tool with a safety check that only deletes inside `{{crons_path}}`
+
+Use this command shape, replacing `<cron-name>` with the confirmed cron name:
 ```bash
-rm -rf {{crons_path}}/<cron-name>
+python -c "from pathlib import Path; import shutil; base=Path(r'{{crons_path}}').resolve(); target=(base / '<cron-name>').resolve(); assert target != base and base in target.parents, target; shutil.rmtree(target)"
 ```
 
 ## Cron Prompt Guidelines
 
-Cron jobs run in the background with no direct output to the user. The agent executing the cron has no conversation context.
+Cron jobs run silently in the background with no conversation context. The agent's final response is consumed internally as a `DispatchResultEvent` for runtime bookkeeping and is not delivered to the user.
 
 **When the user asks to be notified** (e.g., "tell me", "let me know", "remind me"):
-- Include `post_message` instruction in the prompt
+- Explain that cron jobs do not send user-facing notifications in the current runtime.
+- Do not create a cron that promises direct delivery to the user.
+- Offer to create a silent background task only if that still satisfies the user's intent.
 
-**When the user doesn't ask for notification:**
-- No `post_message` needed (e.g., background cleanup, data processing)
+**For normal cron jobs:**
+- Write the prompt for autonomous background work.
+- Prefer prompts that update files, inspect state, organize data, or perform maintenance.
+- Make the final response a brief status summary for internal logs.
 
 ## Cron Template
 
@@ -70,7 +88,7 @@ Cron jobs run in the background with no direct output to the user. The agent exe
 ---
 name: Cron Name
 description: Brief description of what this cron does
-agent: pickle
+agent: {{default_agent}}
 schedule: "0 9 * * *"
 one_off: false  # Set to true for one-time jobs (optional, defaults to false)
 ---
@@ -78,27 +96,27 @@ one_off: false  # Set to true for one-time jobs (optional, defaults to false)
 Task description for the agent to execute.
 ```
 
-**With notification:**
+**Background daily summary:**
 ```markdown
 ---
 name: Daily Summary
-description: Sends a daily summary of activity
-agent: pickle
+description: Writes a daily summary of activity
+agent: {{default_agent}}
 schedule: "0 9 * * *"
 ---
 
-Check my inbox and use post_message to send me a summary.
+Review recent workspace activity and write a concise summary to `{{workspace}}/daily-summary.md`.
 ```
 
-**One-off reminder:**
+**One-off checkpoint:**
 ```markdown
 ---
-name: Meeting Reminder
-description: Reminder for tomorrow's meeting
-agent: pickle
+name: Project Checkpoint
+description: Runs one scheduled project checkpoint
+agent: {{default_agent}}
 schedule: "30 14 21 3 *"
 one_off: true
 ---
 
-Use post_message to remind me about the team meeting in 15 minutes.
+Inspect project status files and append a concise checkpoint to `{{workspace}}/cron-checkpoints.md`.
 ```

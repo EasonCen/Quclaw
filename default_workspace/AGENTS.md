@@ -6,7 +6,7 @@ This workspace has the following agents configured:
 
 | Agent | Description |
 |-------|-------------|
-| pickle | Default agent for general conversations, daily tasks, coding help, and creative work |
+| Qu | Default agent for general conversations, daily tasks, coding help, and creative work |
 | cookie | Memory manager - always query for memory operations (store and retrieve) |
 
 ## Dispatching Tasks

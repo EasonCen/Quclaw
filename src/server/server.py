@@ -8,6 +8,7 @@ from channel.base import Channel
 
 from .agent_worker import AgentWorker
 from .channel_worker import ChannelWorker
+from .cron_worker import CronWorker
 from .delivery_worker import DeliveryWorker
 from .websocket_worker import WebSocketWorker
 from .worker import Worker
@@ -57,6 +58,7 @@ class Server:
             DeliveryWorker(self.context),
             AgentWorker(self.context),
             ChannelWorker(self.context),
+            CronWorker(self.context),
         ]
         if self.context.config.websocket.enabled:
             self.workers.append(WebSocketWorker(self.context))

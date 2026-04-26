@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING
 from .worker import SubscriberWorker
 from core.agent import Agent, AgentSession
 from core.events import (
+    DispatchEvent,
+    DispatchResultEvent,
     InboundEvent,
     OutboundEvent,
 )
@@ -13,9 +15,11 @@ from utils.def_loader import DefNotFoundError
 if TYPE_CHECKING:
     from core.agent_loader import AgentDef
 
+AgentWorkEvent = InboundEvent | DispatchEvent
+
 
 class AgentWorker(SubscriberWorker):
-    """Routes inbound events to agent sessions and emits responses."""
+    """Routes inbound and dispatch events to agent sessions."""
 
     def __init__(self, context):
         super().__init__(context)
@@ -25,7 +29,10 @@ class AgentWorker(SubscriberWorker):
 
         # Auto-subscribe to events
         self.context.eventbus.subscribe(InboundEvent, self.dispatch_event)
-        self.logger.info("AgentWorker subscribed to InboundEvent events")
+        self.context.eventbus.subscribe(DispatchEvent, self.dispatch_event)
+        self.logger.info(
+            "AgentWorker subscribed to InboundEvent and DispatchEvent events"
+        )
 
     def clear_sessions(self) -> None:
         """Drop cached sessions so future requests use the latest config."""
@@ -33,17 +40,17 @@ class AgentWorker(SubscriberWorker):
         self._sessions.clear()
         self.logger.info("Cleared %s cached agent sessions after config reload", count)
 
-    async def dispatch_event(self, event: InboundEvent) -> None:
-        """Create a background executor task for an inbound event."""
+    async def dispatch_event(self, event: AgentWorkEvent) -> None:
+        """Create a background executor task for an agent work event."""
         task = asyncio.create_task(
             self.exec_session(event),
-            name=f"agent-session:{event.session_id}",
+            name=f"agent-session:{event.__class__.__name__}:{event.session_id}",
         )
         self._tasks.add(task)
         task.add_done_callback(self._on_task_done)
 
-    async def exec_session(self, event: InboundEvent) -> None:
-        """Execute an inbound event against an agent session."""
+    async def exec_session(self, event: AgentWorkEvent) -> None:
+        """Execute an event against an agent session."""
         session_id = event.session_id
         lock = self._session_locks.setdefault(session_id, asyncio.Lock())
 
@@ -67,12 +74,12 @@ class AgentWorker(SubscriberWorker):
 
             await self._emit_response(event, content)
 
-    def _route_agent_def(self, event: InboundEvent) -> "AgentDef":
-        """Route an inbound event to its agent definition."""
+    def _route_agent_def(self, event: AgentWorkEvent) -> "AgentDef":
+        """Route an event to its agent definition."""
         session_id = event.session_id
         session_info = self.context.history_store.get_session_info(session_id)
         if session_info is None:
-            agent_id = self.context.routing_table.resolve(str(event.source))
+            agent_id = self._resolve_agent_id(event)
             self.logger.debug(
                 "Session %s not found in history; routed source %s to agent %s",
                 session_id,
@@ -84,9 +91,16 @@ class AgentWorker(SubscriberWorker):
 
         return self.context.agent_loader.load(agent_id)
 
+    def _resolve_agent_id(self, event: AgentWorkEvent) -> str:
+        """Resolve the target agent for a new session."""
+        if isinstance(event, DispatchEvent) and event.target_agent_id:
+            return event.target_agent_id
+
+        return self.context.routing_table.resolve(str(event.source))
+
     def _get_or_create_session(
         self,
-        event: InboundEvent,
+        event: AgentWorkEvent,
         agent_def: "AgentDef",
     ) -> AgentSession:
         """Return cached session or create one for the requested agent."""
@@ -143,11 +157,23 @@ class AgentWorker(SubscriberWorker):
 
     async def _emit_response(
         self,
-        event: InboundEvent,
+        event: AgentWorkEvent,
         content: str,
         error: str | None = None,
     ) -> None:
         """Emit response event with content."""
+        if isinstance(event, DispatchEvent):
+            await self.context.eventbus.publish(
+                DispatchResultEvent(
+                    session_id=event.session_id,
+                    content=content,
+                    source=event.source,
+                    request_id=event.request_id,
+                    error=error,
+                )
+            )
+            return
+
         await self.context.eventbus.publish(
             OutboundEvent(
                 session_id=event.session_id,

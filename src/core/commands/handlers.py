@@ -7,6 +7,7 @@ from utils.def_loader import DefNotFoundError, InvalidDefError
 
 if TYPE_CHECKING:
     from core.agent_loader import AgentDef
+    from core.cron_loader import CronDef
     from core.agent import AgentSession
 
 
@@ -125,7 +126,7 @@ class RouteCommand(Command):
     async def execute(self, args: str, session: "AgentSession") -> str:
         parts = args.strip().split(None, 1)
         if len(parts) != 2:
-            return "**Usage:** `/route <source_pattern> <agent_id>`\n\nExample: `/route platform-telegram:.* pickle`"
+            return "**Usage:** `/route <source_pattern> <agent_id>`\n\nExample: `/route platform-telegram:.* Qu`"
 
         pattern, agent_id = parts
 
@@ -178,6 +179,63 @@ class BindingsCommand(Command):
         for binding in bindings:
             lines.append(f"- `{binding['value']}` → `{binding['agent']}`")
 
+        return "\n".join(lines)
+
+
+class CronsCommand(Command):
+    """List all cron jobs or show cron details."""
+
+    name = "crons"
+    description = "List all cron jobs or show one cron's content."
+
+    async def execute(self, args: str, session: "AgentSession") -> str:
+        cron_id = args.strip()
+
+        try:
+            if cron_id:
+                cron = session.shared_context.cron_loader.load(cron_id)
+                return self._render_cron_detail(cron)
+
+            crons = sorted(
+                session.shared_context.cron_loader.discover_crons(),
+                key=lambda cron: cron.name.lower(),
+            )
+        except DefNotFoundError as exc:
+            if exc.def_type == "cron":
+                return f"✗ Cron job `{cron_id}` not found."
+            return "Crons directory not found."
+        except InvalidDefError as exc:
+            return f"Invalid cron definition: {exc}"
+
+        if not crons:
+            return "No cron jobs configured."
+
+        lines = ["**Cron Jobs:**"]
+        for cron in crons:
+            one_off = " one-off" if cron.one_off else ""
+            lines.append(
+                f"- `{cron.id}`: {cron.name} - `{cron.schedule}` → `{cron.agent}`{one_off}"
+            )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _render_cron_detail(cron: "CronDef") -> str:
+        """Render details for a single cron job."""
+        lines = [
+            f"**Cron:** `{cron.id}`",
+            f"**Name:** {cron.name}",
+            f"**Description:** {cron.description}",
+            f"**Agent:** `{cron.agent}`",
+            f"**Schedule:** `{cron.schedule}`",
+            f"**One-off:** {cron.one_off}",
+            "",
+            "---",
+            "",
+            "**Prompt:**",
+            "```",
+            cron.prompt,
+            "```",
+        ]
         return "\n".join(lines)
 
 
