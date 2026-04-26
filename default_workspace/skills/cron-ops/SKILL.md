@@ -11,6 +11,16 @@ tools. Do not register or ask for a dedicated cron tool.
 A cron is a scheduled task that runs at specified intervals. Crons are stored as
 `CRON.md` files at `{{crons_path}}/<name>/CRON.md`.
 
+## Cron vs Heartbeat
+
+Use Cron when the user wants a specific task at a specific time, a task with a
+cron expression, multiple independent scheduled jobs, or one-off work at an
+exact future time.
+
+Use the `heartbeat-ops` skill instead when the user wants ongoing periodic
+awareness, background maintenance, regular project checks, or several small
+checks batched into one agent turn.
+
 ## Schedule Syntax
 
 Standard cron format: `minute hour day month weekday`

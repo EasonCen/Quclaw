@@ -14,6 +14,12 @@ default_agent: Qu
 context:
   token_threshold: 160000
 
+# Heartbeat is a silent periodic background turn for ongoing awareness.
+# It is disabled by default to avoid automatic LLM calls.
+heartbeat:
+  interval_minutes: 0
+  agent: null
+
 # Channel configuration for serving the agent through messaging platforms.
 # To enable channels, set channels.enabled=true and enable at least one platform below.
 channels:

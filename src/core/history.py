@@ -135,6 +135,14 @@ class HistoryStore:
                 return index
         return -1
 
+    @staticmethod
+    def _derive_title(messages: list[HistoryMessage]) -> str | None:
+        """Derive a session title from the first user message."""
+        for message in messages:
+            if message.role == "user" and message.content:
+                return message.content.strip().splitlines()[0][:80]
+        return None
+
     def create_session(
         self,
         agent_id: str,
@@ -238,8 +246,16 @@ class HistoryStore:
         shutil.copy2(session_path, archive_path)
         return archive_path
 
-    def replace_messages(self, session_id: str, messages: list[Message]) -> None:
-        """Replace a session's persisted messages, archiving the old file first."""
+    def replace_messages(
+        self,
+        session_id: str,
+        messages: list[Message],
+        *,
+        archive: bool = True,
+        reason: str = "compaction",
+        preserve_title: bool = True,
+    ) -> None:
+        """Replace a session's persisted messages."""
         sessions = self._read_index()
         session_index = self._find_session_index(sessions, session_id)
         if session_index < 0:
@@ -249,7 +265,8 @@ class HistoryStore:
             HistoryMessage.from_message(message)
             for message in messages
         ]
-        self.archive_session(session_id, "compaction")
+        if archive:
+            self.archive_session(session_id, reason)
 
         session_path = self._session_path(session_id)
         session_path.parent.mkdir(parents=True, exist_ok=True)
@@ -264,8 +281,10 @@ class HistoryStore:
 
         session = sessions[session_index]
         updated_at = history_messages[-1].timestamp if history_messages else _now_iso()
+        title = session.title if preserve_title else self._derive_title(history_messages)
         sessions[session_index] = session.model_copy(
             update={
+                "title": title,
                 "message_count": len(history_messages),
                 "updated_at": updated_at,
             }

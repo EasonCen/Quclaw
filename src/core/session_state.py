@@ -27,12 +27,22 @@ class SessionState:
         history_msg = HistoryMessage.from_message(message)
         self.shared_context.history_store.save_message(self.session_id, history_msg)
 
-    def replace_messages(self, messages: list[Message]) -> None:
+    def replace_messages(
+        self,
+        messages: list[Message],
+        *,
+        archive: bool = True,
+        reason: str = "compaction",
+        preserve_title: bool = True,
+    ) -> None:
         """Replace in-memory messages and persist the rewritten session."""
         self.messages = list(messages)
         self.shared_context.history_store.replace_messages(
             self.session_id,
             self.messages,
+            archive=archive,
+            reason=reason,
+            preserve_title=preserve_title,
         )
 
     def build_messages(self) -> list[Message]:

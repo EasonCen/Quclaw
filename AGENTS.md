@@ -20,7 +20,7 @@
 1. 让智能体学会聊天、用工具、加载技能、保存对话、上网搜索。（已完成）
 2. 换成事件驱动架构，配置热重载，支持多平台接入。（已完成）
 3. WebSocket入口，让程序也能像 Telegram/Discord 一样给 agent 发消息。（已完成）
-4. 定时任务、智能路由、多智能体协作。（正在进行：定时任务）
+4. 定时任务、智能路由、多智能体协作。（正在进行：多层提示）
 5. 并发控制和长期记忆。
 
 ## 代码规范
@@ -32,55 +32,85 @@
 
 ## 当前目标
 
-Cron + Heartbeat
-> Agent 在你睡觉时候工作
+多层提示
+> 更多上下文，更多上下文，更多上下文。
 
-定时任务——智能体按 cron 表达式自动跑。
-以前只有用户发消息才会触发 agent；现在开始，系统自己也可以按时间触发 agent。
+系统提示分多层组装：身份、性格、工作区上下文、运行时信息。
 
-- Cron 操作功能使用 **SKILL 系统**实现，而不是注册专用工具，这避免了工具注册表的膨胀。
+五层提示词：
+第1层：身份层
+来自 AGENT.md。比如 Qu 的身份、能力、行为准则。
+default_workspace/agents/Qu/AGENT.md
+
+它回答的是：
+“你是谁？你能做什么？基本行为边界是什么？”
+
+第 2 层：性格层
+来自 SOUL.md。
+default_workspace/agents/Qu/SOUL.md
+
+这一层回答的是：
+“你说话是什么风格？你像一个怎样的助手？”
+
+第 3 层：工作区上下文
+来自：
+
+default_workspace/BOOTSTRAP.md
+default_workspace/AGENTS.md
+
+PromptBuilder 会读它们：
+
+prompt_builder.py
+
+这层告诉模型：
+
+“这个 workspace 有哪些目录？agents、skills、crons、memories 在哪里？什么时候该调度别的 agent？”
+
+第 4 层：运行时上下文
+这层回答的是：
+“现在是谁在运行？当前时间是什么？”
+
+第 5 层：渠道提示
+这里根据事件来源生成
+例如：
+
+```python
+if source.is_cron:
+    return "You are running as a background cron job..."
+if source.is_agent:
+    return "You are running as a dispatched subagent..."
+elif source.is_platform:
+    return f"You are responding via {source.platform_name}."
+```
+
+这层很重要。因为同一个 agent 在不同场景下行为应该不同：
+
+CLI / Telegram / WebSocket：直接回复用户。
+Cron：后台任务，不一定直接发给用户。
+Subagent：结果要回传给主 agent，而不是像聊天一样闲聊。
+
+---
+
+这次的目标是在把 prompt 从一个大坨文本，升级成一个可维护的系统：
+
+AGENT.md 管身份和能力。
+SOUL.md 管人格和语气。
+BOOTSTRAP.md 管 workspace 规则。
+AGENTS.md 管多 agent 协作规则。
+runtime layer 管当前时间、当前 agent、当前渠道。
+
+这样以后想加“记忆层”“用户偏好层”“项目上下文层”，就不用把所有东西塞进 AGENT.md。直接在 PromptBuilder.build() 里加一层就行。
+架构可以按需加层。比如加个**记忆层**，注入历史对话的相关内容。
 
 ### 关键组件
 
-CronDef
-CronLoader
-CronWorker
-CronEventSource
-DispatchEvent
-DispatchResultEvent
+- **AgentDef** - `soul_md` 扩展
+- **PromptBuilder** - 将所有提示层组装成最终系统提示
 
-- **CRON.md & CronDef** - Cron 任务定义
-- **CronWorker** - 每分钟检查待执行任务的后台工作器
-- **DispatchEvent** - 内部任务调度的事件类型
-- **DispatchResultEvent** - 调度任务返回的结果事件
-- **Cron-Ops Skill** - 用于创建、列出和删除定时 cron 任务的技能（实现为技能以避免额外的工具注册）
+## 该阶段完成后的下一步
 
-### 需要注意
-
-不用 `InboundEvent`，而是 `DispatchEvent`
-
-以前用户消息是：`InboundEvent`
-意思是：外部用户/平台输入。
-
-cron 不是用户输入，它是系统内部调度任务，所以用了：`DispatchEvent`
-它表示：
-系统内部派发给某个 agent 的任务`AgentWorker` 也因此改了：
-
-```python
-self.context.eventbus.subscribe(InboundEvent, self.dispatch_event)
-self.context.eventbus.subscribe(DispatchEvent, self.dispatch_event)
-```
-
-于是 AgentWorker 可以处理两类任务：
-
-- 用户消息 `InboundEvent`
-- 后台任务 `DispatchEvent`
-
-### CRON vs HEARTBEAT
-
-- **HEARTBEAT**：只有一个，固定间隔跑，不管几点
-- **CRON**：可以有多个，按 cron 表达式跑，精确到分钟
-
+智能体主动发送通信
+  
 ## 后面再做的（不用管）
 
 CLI 超时不会取消 AgentWorker 里的实际执行。

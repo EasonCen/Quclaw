@@ -2,6 +2,7 @@
 import asyncio
 from typing import TYPE_CHECKING
 
+from .heartbeat_worker import is_heartbeat_ok
 from .worker import SubscriberWorker
 from core.agent import Agent, AgentSession
 from core.events import (
@@ -10,6 +11,7 @@ from core.events import (
     InboundEvent,
     OutboundEvent,
 )
+from provider.llm.base import Message
 from utils.def_loader import DefNotFoundError
 
 if TYPE_CHECKING:
@@ -55,10 +57,19 @@ class AgentWorker(SubscriberWorker):
         lock = self._session_locks.setdefault(session_id, asyncio.Lock())
 
         async with lock:
+            heartbeat_snapshot: list[Message] | None = None
             try:
                 agent_def = self._route_agent_def(event)
                 session = self._get_or_create_session(event, agent_def)
+                if self._should_prune_heartbeat_ok(event):
+                    heartbeat_snapshot = list(session.state.messages)
                 content = await self._run_command_or_chat(event.content, session)
+                if heartbeat_snapshot is not None and is_heartbeat_ok(content):
+                    session.state.replace_messages(
+                        heartbeat_snapshot,
+                        archive=False,
+                        preserve_title=bool(heartbeat_snapshot),
+                    )
             except asyncio.CancelledError:
                 raise
             except DefNotFoundError as exc:
@@ -73,6 +84,11 @@ class AgentWorker(SubscriberWorker):
                 return
 
             await self._emit_response(event, content)
+
+    @staticmethod
+    def _should_prune_heartbeat_ok(event: AgentWorkEvent) -> bool:
+        """Return whether quiet heartbeat acks should be removed from history."""
+        return isinstance(event, DispatchEvent) and event.source.is_heartbeat
 
     def _route_agent_def(self, event: AgentWorkEvent) -> "AgentDef":
         """Route an event to its agent definition."""

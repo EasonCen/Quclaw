@@ -133,6 +133,13 @@ class WebSocketConfig(BaseModel):
         return value
 
 
+class HeartbeatConfig(BaseModel):
+    """Heartbeat background worker configuration."""
+
+    interval_minutes: int = Field(default=0, ge=0)
+    agent: str | None = None
+
+
 class Config(BaseModel):
     """Main configuration for step 03."""
 
@@ -150,6 +157,7 @@ class Config(BaseModel):
     context: ContextConfig = Field(default_factory=ContextConfig)
     channels: ChannelConfig = Field(default_factory=ChannelConfig)
     websocket: WebSocketConfig = Field(default_factory=WebSocketConfig)
+    heartbeat: HeartbeatConfig = Field(default_factory=HeartbeatConfig)
     sources: dict[str, SourceSessionConfig] = Field(default_factory=dict)
     routing: dict = Field(default_factory=lambda: {"bindings": []})
     default_delivery_source: str | None = None

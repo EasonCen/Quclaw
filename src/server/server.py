@@ -10,6 +10,7 @@ from .agent_worker import AgentWorker
 from .channel_worker import ChannelWorker
 from .cron_worker import CronWorker
 from .delivery_worker import DeliveryWorker
+from .heartbeat_worker import HeartbeatWorker
 from .websocket_worker import WebSocketWorker
 from .worker import Worker
 from utils.config import ConfigReloader
@@ -59,6 +60,7 @@ class Server:
             AgentWorker(self.context),
             ChannelWorker(self.context),
             CronWorker(self.context),
+            HeartbeatWorker(self.context),
         ]
         if self.context.config.websocket.enabled:
             self.workers.append(WebSocketWorker(self.context))

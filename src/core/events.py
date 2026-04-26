@@ -39,6 +39,10 @@ class EventSource(ABC):
         return self._namespace == "cron"
 
     @property
+    def is_heartbeat(self) -> bool:
+        return self._namespace == "heartbeat"
+
+    @property
     def platform_name(self) -> str | None:
         if not self.is_platform:
             return None
@@ -120,6 +124,22 @@ class CronEventSource(EventSource):
     def from_string(cls, s: str) -> "CronEventSource":
         _, cron_id = s.split(":", 1)
         return cls(cron_id=cron_id)
+
+
+@dataclass
+class HeartbeatEventSource(EventSource):
+    """Source for heartbeat-triggered events."""
+
+    _namespace = "heartbeat"
+    agent_id: str
+
+    def __str__(self) -> str:
+        return f"{self._namespace}:{self.agent_id}"
+
+    @classmethod
+    def from_string(cls, s: str) -> "HeartbeatEventSource":
+        _, agent_id = s.split(":", 1)
+        return cls(agent_id=agent_id)
 
 
 @dataclass

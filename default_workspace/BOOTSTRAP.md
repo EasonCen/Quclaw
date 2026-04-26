@@ -5,6 +5,7 @@
 - Workspace: `{{workspace}}`
 - Skills: `{{skills_path}}`
 - Crons: `{{crons_path}}`
+- Heartbeat: `{{workspace}}/HEARTBEAT.md`
 - Memories: `{{memories_path}}`
 - Agents: `{{agents_path}}`
 
@@ -24,6 +25,7 @@
 ├── crons/                # Scheduled tasks
 │   └── {name}/
 │       └── CRON.md      # Skill definition
+├── HEARTBEAT.md          # Silent periodic background checklist
 └── memories/             # Persistent memory storage
     ├── topics/           # Timeless facts
     ├── projects/         # Project-specific context
@@ -52,3 +54,6 @@
 ### Capability Files
 
 - **SKILL.md** - Reusable skill definition with instructions and scripts
+- **HEARTBEAT.md** - Optional checklist for the single silent Heartbeat loop
+  - Used for periodic awareness and background maintenance
+  - Not a notification or reminder channel
