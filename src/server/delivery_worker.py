@@ -134,11 +134,13 @@ class DeliveryWorker(SubscriberWorker):
         platform = source.platform_name
 
         if not source.is_platform or platform is None:
-            self.logger.debug("Ignored non-platform outbound event from %s", source)
+            self.logger.warning("Dropped non-platform outbound event from %s", source)
+            self.context.eventbus.ack(event)
             return
 
         if platform == "ws":
             self.logger.debug("Ignored websocket outbound event from %s", source)
+            self.context.eventbus.ack(event)
             return
 
         channel = self.channel_map.get(platform)
@@ -149,6 +151,24 @@ class DeliveryWorker(SubscriberWorker):
                 source,
                 reason=f"no channel configured for platform {platform}",
             )
+            return
+
+        try:
+            allowed = await channel.is_allowed(source)
+        except Exception:
+            self.logger.exception(
+                "Failed to validate delivery permission for %s",
+                source,
+            )
+            self.context.eventbus.ack(event)
+            return
+
+        if not allowed:
+            self.logger.warning(
+                "Rejected outbound delivery to non-whitelisted source %s",
+                source,
+            )
+            self.context.eventbus.ack(event)
             return
 
         content = event.content
@@ -170,6 +190,9 @@ class DeliveryWorker(SubscriberWorker):
 
     def _resolve_delivery_source(self, event: OutboundEvent) -> EventSource:
         """Resolve the delivery source from session metadata, falling back to event."""
+        if event.source.is_platform:
+            return event.source
+
         session = self._get_session_info(event.session_id)
         if session is None:
             self.logger.debug(

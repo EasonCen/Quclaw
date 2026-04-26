@@ -13,6 +13,7 @@ from core.events import EventSource
 from core.session_state import SessionState
 from provider.llm.base import LLMProvider, LLMToolCall, Message
 from tools.base import tool_call_to_message
+from tools.post_message_tool import create_post_message_tool
 from tools.registry import ToolRegistry
 from tools.skill_tools import create_skill_tool
 from tools.webread_tool import create_webread_tool
@@ -53,7 +54,7 @@ class Agent:
         """Get token threshold from workspace configuration."""
         return self.context.config.context.token_threshold
 
-    def _build_tools(self) -> ToolRegistry:
+    def _build_tools(self, include_post_message: bool) -> ToolRegistry:
         """Build a ToolRegistry with tools appropriate for the session."""
         registry = ToolRegistry.with_builtins()
 
@@ -70,6 +71,11 @@ class Agent:
             if skill_tool:
                 registry.register(skill_tool)
 
+        if include_post_message:
+            post_tool = create_post_message_tool(self.context)
+            if post_tool:
+                registry.register(post_tool)
+
         return registry
 
     def new_session(
@@ -79,7 +85,7 @@ class Agent:
     ) -> "AgentSession":
         """Create a new conversation session for an event source."""
         session_id = session_id or uuid.uuid4().hex
-        tools = self._build_tools()
+        tools = self._build_tools(include_post_message=source.is_cron)
         
         # Create context guard for this session
         context_guard = ContextGuard(
@@ -137,7 +143,7 @@ class Agent:
         messages: list[Message] = [msg.to_message() for msg in history_messages]
 
         # Build tools for resumed session
-        tools = self._build_tools()
+        tools = self._build_tools(include_post_message=session_source.is_cron)
 
         # Create context guard
         context_guard = ContextGuard(

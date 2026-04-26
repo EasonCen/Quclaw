@@ -12,7 +12,15 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from channel.base import Channel
-from core.events import EventSource, OutboundEvent, deserialize_event, serialize_event
+from core.events import (
+    AgentEventSource,
+    CronEventSource,
+    EventSource,
+    OutboundEvent,
+    WebSocketEventSource,
+    deserialize_event,
+    serialize_event,
+)
 from server import delivery_worker as delivery_module
 from server.delivery_worker import DeliveryWorker, MAX_RETRY
 
@@ -58,16 +66,33 @@ class FakeEventBus:
         return self.published[-1]
 
 
+class FakeHistorySession:
+    def __init__(self, session_id: str, source: EventSource) -> None:
+        self.id = session_id
+        self.source = str(source)
+        self._source = source
+
+    def try_get_source(self) -> EventSource:
+        return self._source
+
+
 class FakeHistoryStore:
+    def __init__(self, sessions: list[Any] | None = None) -> None:
+        self.sessions = sessions or []
+
     def list_sessions(self) -> list[Any]:
-        return []
+        return self.sessions
 
 
 class FakeContext:
-    def __init__(self, channels: list[Channel[Any]] | None = None) -> None:
+    def __init__(
+        self,
+        channels: list[Channel[Any]] | None = None,
+        sessions: list[Any] | None = None,
+    ) -> None:
         self.channels = channels or []
         self.eventbus = FakeEventBus()
-        self.history_store = FakeHistoryStore()
+        self.history_store = FakeHistoryStore(sessions)
 
 
 class FailingChannel(Channel[StubEventSource]):
@@ -94,6 +119,38 @@ class FailingChannel(Channel[StubEventSource]):
         pass
 
 
+class RecordingChannel(Channel[StubEventSource]):
+    def __init__(
+        self,
+        *,
+        allowed: bool = True,
+        allow_error: Exception | None = None,
+    ) -> None:
+        self.allowed = allowed
+        self.allow_error = allow_error
+        self.allow_checked: list[EventSource] = []
+        self.delivered: list[tuple[str, EventSource]] = []
+
+    @property
+    def platform_name(self) -> str:
+        return "test"
+
+    async def run(self, on_message: Any) -> None:
+        del on_message
+
+    async def reply(self, content: str, source: StubEventSource) -> None:
+        self.delivered.append((content, source))
+
+    async def is_allowed(self, source: StubEventSource) -> bool:
+        self.allow_checked.append(source)
+        if self.allow_error is not None:
+            raise self.allow_error
+        return self.allowed
+
+    async def stop(self) -> None:
+        pass
+
+
 def make_outbound_event() -> OutboundEvent:
     return OutboundEvent(
         session_id="session-1",
@@ -112,6 +169,113 @@ def test_outbound_retry_count_round_trips_through_serialization() -> None:
     assert isinstance(restored, OutboundEvent)
     assert restored.retry_count == 3
     assert restored.request_id == event.request_id
+
+
+def test_platform_event_source_takes_precedence_over_session_metadata() -> None:
+    async def scenario() -> None:
+        channel = RecordingChannel()
+        context = FakeContext(
+            channels=[channel],
+            sessions=[
+                FakeHistorySession(
+                    "cron-session",
+                    CronEventSource("daily-check"),
+                )
+            ],
+        )
+        worker = DeliveryWorker(context)
+        event = OutboundEvent(
+            session_id="cron-session",
+            request_id="request-1",
+            content="hello",
+            source=StubEventSource(),
+        )
+
+        await worker.deliver(event)
+
+        assert len(channel.delivered) == 1
+        assert channel.delivered[0][0] == "hello"
+        assert isinstance(channel.delivered[0][1], StubEventSource)
+        assert context.eventbus.acked == [event]
+        await worker.stop()
+
+    asyncio.run(scenario())
+
+
+def test_non_platform_outbound_event_is_acked_without_retry() -> None:
+    async def scenario() -> None:
+        context = FakeContext()
+        worker = DeliveryWorker(context)
+        event = OutboundEvent(
+            session_id="session-1",
+            request_id="request-1",
+            content="hello",
+            source=AgentEventSource("Qu"),
+        )
+
+        await worker.deliver(event)
+
+        assert context.eventbus.acked == [event]
+        assert context.eventbus.published == []
+        await worker.stop()
+
+    asyncio.run(scenario())
+
+
+def test_websocket_outbound_event_is_acked_without_retry() -> None:
+    async def scenario() -> None:
+        context = FakeContext()
+        worker = DeliveryWorker(context)
+        event = OutboundEvent(
+            session_id="session-1",
+            request_id="request-1",
+            content="hello",
+            source=WebSocketEventSource(client_id="client-1"),
+        )
+
+        await worker.deliver(event)
+
+        assert context.eventbus.acked == [event]
+        assert context.eventbus.published == []
+        await worker.stop()
+
+    asyncio.run(scenario())
+
+
+def test_non_whitelisted_delivery_is_acked_without_reply() -> None:
+    async def scenario() -> None:
+        channel = RecordingChannel(allowed=False)
+        context = FakeContext(channels=[channel])
+        worker = DeliveryWorker(context)
+        event = make_outbound_event()
+
+        await worker.deliver(event)
+
+        assert len(channel.allow_checked) == 1
+        assert channel.delivered == []
+        assert context.eventbus.acked == [event]
+        assert context.eventbus.published == []
+        await worker.stop()
+
+    asyncio.run(scenario())
+
+
+def test_allowlist_error_is_acked_without_reply() -> None:
+    async def scenario() -> None:
+        channel = RecordingChannel(allow_error=RuntimeError("bad allowlist"))
+        context = FakeContext(channels=[channel])
+        worker = DeliveryWorker(context)
+        event = make_outbound_event()
+
+        await worker.deliver(event)
+
+        assert len(channel.allow_checked) == 1
+        assert channel.delivered == []
+        assert context.eventbus.acked == [event]
+        assert context.eventbus.published == []
+        await worker.stop()
+
+    asyncio.run(scenario())
 
 
 def test_missing_channel_schedules_outbox_retry(monkeypatch: pytest.MonkeyPatch) -> None:
