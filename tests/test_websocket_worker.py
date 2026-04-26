@@ -34,6 +34,9 @@ class FakeEventBus:
         del handler
         self.subscriptions.append(event_class)
 
+    def unsubscribe(self, handler: Any) -> None:
+        del handler
+
     async def publish(self, event: Any) -> None:
         self.published.append(event)
         if self.on_publish is not None:
@@ -79,6 +82,10 @@ class FakeConfig:
     def set_runtime(self, key: str, value: Any) -> None:
         self._runtime[key] = value
 
+    def set_runtime_source(self, source: str, value: SourceSessionConfig) -> None:
+        self.sources[source] = value
+        self._runtime.setdefault("sources", {})[source] = value
+
 
 class FakeWebSocket:
     def __init__(self, incoming: list[Any] | None = None) -> None:
@@ -118,6 +125,9 @@ def test_websocket_message_normalizes_to_inbound_event() -> None:
 
         assert isinstance(event, InboundEvent)
         assert event.content == "hello"
+        assert isinstance(event.source, WebSocketEventSource)
+        assert event.source.client_id == "client-1"
+        assert event.source.conversation_id == "chat-1"
         assert str(event.source) == "platform-ws:client-1/chat-1"
         assert event.request_id
         assert context.config.sources[str(event.source)].session_id == event.session_id

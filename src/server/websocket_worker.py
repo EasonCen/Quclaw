@@ -112,7 +112,7 @@ class WebSocketWorker(Worker):
 
     async def _normalize_message(self, msg: WebSocketMessage) -> InboundEvent:
         """Normalize a WebSocket message into an InboundEvent."""
-        source = WebSocketEventSource(client_id=msg.source)
+        source = WebSocketEventSource.from_string(f"platform-ws:{msg.source}")
         session_id = await self._get_or_create_session_id(source)
 
         return InboundEvent(
@@ -152,6 +152,10 @@ class WebSocketWorker(Worker):
 
     async def stop(self) -> None:
         """Stop the WebSocket server and close active clients."""
+        self.context.eventbus.unsubscribe(self.handle_event)
+        if self.context.websocket_worker is self:
+            self.context.websocket_worker = None
+
         if self._server is not None:
             self._server.should_exit = True
 
@@ -179,12 +183,9 @@ class WebSocketWorker(Worker):
                 return source_session.session_id
 
             session_id = uuid.uuid4().hex
-            self.context.config.sources[source_str] = SourceSessionConfig(
-                session_id=session_id,
-            )
-            self.context.config.set_runtime(
-                f"sources.{source_str}",
-                self.context.config.sources[source_str],
+            self.context.config.set_runtime_source(
+                source_str,
+                SourceSessionConfig(session_id=session_id),
             )
 
             return session_id

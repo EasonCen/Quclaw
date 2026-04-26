@@ -224,7 +224,7 @@ class Config(BaseModel):
         """Update a config value in a YAML file."""
         # Load existing or start fresh
         if config_path.exists():
-            with open(config_path) as f:
+            with open(config_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
         else:
             data = {}
@@ -236,7 +236,34 @@ class Config(BaseModel):
         self._set_nested(data, key, value)
 
         # Write back
-        with open(config_path, "w") as f:
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.dump(data, f)
+
+    def _set_mapping_value(
+        self,
+        config_path: Path,
+        mapping_key: str,
+        item_key: str,
+        value: Any,
+    ) -> None:
+        """Update one key inside a top-level mapping without dot-path parsing."""
+        if config_path.exists():
+            with open(config_path, encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+        else:
+            data = {}
+
+        mapping = data.get(mapping_key)
+        if not isinstance(mapping, dict):
+            mapping = {}
+            data[mapping_key] = mapping
+
+        if isinstance(value, BaseModel):
+            value = value.model_dump()
+
+        mapping[item_key] = value
+
+        with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(data, f)
 
     def set_user(self, key: str, value: Any) -> None:
@@ -246,6 +273,20 @@ class Config(BaseModel):
     def set_runtime(self, key: str, value: Any) -> None:
         """Update a runtime value in config.runtime.yaml."""
         self._set_config_value(self.workspace / "config.runtime.yaml", key, value)
+
+    def set_runtime_source(
+        self,
+        source: str,
+        value: SourceSessionConfig,
+    ) -> None:
+        """Update runtime source affinity while preserving source as a literal key."""
+        self.sources[source] = value
+        self._set_mapping_value(
+            self.workspace / "config.runtime.yaml",
+            "sources",
+            source,
+            value,
+        )
 
     def reload(self) -> bool:
         """Re-read config.user.yaml and merge with runtime."""

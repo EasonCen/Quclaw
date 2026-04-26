@@ -15,6 +15,7 @@ from utils.config import ConfigReloader
 
 if TYPE_CHECKING:
     from core.context import SharedContext
+    from utils.config import WebSocketConfig
 
 logger = logging.getLogger(__name__)
 W = TypeVar("W", bound=Worker)
@@ -29,6 +30,7 @@ class Server:
         self.config_reloader = ConfigReloader(self.context.config)
         self._reload_lock = asyncio.Lock()
         self._reload_task: asyncio.Task[None] | None = None
+        self._expected_stopped_tasks: set[asyncio.Task] = set()
 
     async def run(self) -> None:
         """Start all workers and monitor for crashes."""
@@ -83,6 +85,7 @@ class Server:
     async def _reload_config(self) -> None:
         """Reload config, rebuild channels, and clear cached agent sessions."""
         async with self._reload_lock:
+            old_websocket_config = self.context.config.websocket.model_copy(deep=True)
             if not self.context.config.reload():
                 logger.warning("Config reload failed")
                 return
@@ -99,10 +102,35 @@ class Server:
             if delivery_worker is not None:
                 delivery_worker.reload_channels(self.context.channels)
 
+            await self._reload_websocket(old_websocket_config)
+
             for worker in self.workers:
                 if isinstance(worker, AgentWorker):
                     worker.clear_sessions()
             logger.info("Config reloaded")
+
+    async def _reload_websocket(
+        self,
+        old_websocket_config: "WebSocketConfig",
+    ) -> None:
+        """Start, stop, or restart WebSocketWorker after config reload."""
+        websocket_worker = self._get_worker(WebSocketWorker)
+        websocket_config = self.context.config.websocket
+
+        if not websocket_config.enabled:
+            if websocket_worker is not None:
+                await self._stop_worker(websocket_worker)
+            return
+
+        if websocket_worker is not None and old_websocket_config == websocket_config:
+            return
+
+        if websocket_worker is not None:
+            await self._stop_worker(websocket_worker)
+
+        websocket_worker = WebSocketWorker(self.context)
+        self.workers.append(websocket_worker)
+        self._start_worker(websocket_worker)
 
     def _on_reload_done(self, task: asyncio.Task[None]) -> None:
         """Log unexpected config reload task failures."""
@@ -126,30 +154,56 @@ class Server:
     def _start_workers(self) -> None:
         """Start all configured workers."""
         for worker in self.workers:
-            worker.start()
-            logger.info("Started %s", worker.__class__.__name__)
+            self._start_worker(worker)
+
+    def _start_worker(self, worker: Worker) -> None:
+        """Start one worker and log the lifecycle event."""
+        worker.start()
+        logger.info("Started %s", worker.__class__.__name__)
+
+    async def _stop_worker(self, worker: Worker) -> None:
+        """Stop and remove one worker without treating it as a crash."""
+        if worker._task is not None:
+            self._expected_stopped_tasks.add(worker._task)
+
+        await worker.stop()
+        if worker in self.workers:
+            self.workers.remove(worker)
+        logger.info("Stopped %s", worker.__class__.__name__)
 
     async def _monitor_workers(self) -> None:
         """Wait until a worker exits or crashes."""
-        tasks = [
-            worker._task
-            for worker in self.workers
-            if worker._task is not None
-        ]
-        if not tasks:
-            raise RuntimeError("Server has no workers to monitor")
+        while True:
+            tasks = [
+                worker._task
+                for worker in self.workers
+                if worker._task is not None
+            ]
+            if not tasks:
+                raise RuntimeError("Server has no workers to monitor")
 
-        done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-        for task in done:
-            if task.cancelled():
-                raise asyncio.CancelledError
+            done, _ = await asyncio.wait(
+                tasks,
+                timeout=1.0,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if not done:
+                continue
 
-            exception = task.exception()
-            if exception is not None:
-                raise exception
+            for task in done:
+                if task in self._expected_stopped_tasks:
+                    self._expected_stopped_tasks.discard(task)
+                    continue
 
-            worker_name = task.get_name()
-            raise RuntimeError(f"Worker stopped unexpectedly: {worker_name}")
+                if task.cancelled():
+                    raise asyncio.CancelledError
+
+                exception = task.exception()
+                if exception is not None:
+                    raise exception
+
+                worker_name = task.get_name()
+                raise RuntimeError(f"Worker stopped unexpectedly: {worker_name}")
 
     async def _stop_all(self) -> None:
         """Stop all workers in reverse startup order."""

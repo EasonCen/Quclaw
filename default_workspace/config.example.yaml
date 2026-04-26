@@ -33,10 +33,12 @@ channels:
       - "123456789012345678"   # Discord user ID allowed to talk to the agent
 
 # WebSocket gateway for programmatic access.
+# Clients send JSON with source/content only; the server owns source -> session_id mapping.
+# Keep host on 127.0.0.1 for local use. If exposing it beyond localhost, set auth_token.
 websocket:
   enabled: false
   host: 127.0.0.1
-  port: 8765
+  port: 6948
   path: /ws
   auth_token: null
 
