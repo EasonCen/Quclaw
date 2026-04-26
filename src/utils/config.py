@@ -147,6 +147,7 @@ class Config(BaseModel):
     llm: LLMConfig
     default_agent: str
     agents_path: Path = Field(default=Path("agents"))
+    memories_path: Path = Field(default=Path("memories"))
     skills_path: Path = Field(default=Path("skills"))
     crons_path: Path = Field(default=Path("crons"))
     logging_path: Path = Field(default=Path(".logs"))
@@ -170,6 +171,7 @@ class Config(BaseModel):
             "agents_path",
             "skills_path",
             "crons_path",
+            "memories_path",
             "history_path",
             "logging_path",
             "event_path",
@@ -184,6 +186,7 @@ class Config(BaseModel):
         field_names = (
             "workspace",
             "agents_path",
+            "memories_path",
             "skills_path",
             "crons_path",
             "history_path",
@@ -195,9 +198,6 @@ class Config(BaseModel):
             field_name: self._format_template_value(getattr(self, field_name))
             for field_name in field_names
         }
-        values["memories_path"] = self._format_template_value(
-            self.workspace / "memories"
-        )
         return values
 
     @staticmethod

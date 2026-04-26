@@ -9,6 +9,11 @@ llm:
 
 default_agent: Qu
 
+memories_path: memories
+
+# Per-agent options such as max_concurrency are configured in
+# agents/<agent_id>/AGENT.md frontmatter, not in this global config.
+
 # Context compaction configuration.
 # The default value is 80% of a 200k-token context window.
 context:

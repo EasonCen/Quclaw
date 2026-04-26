@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from utils.config import Config, LLMConfig
 from utils.def_loader import(
@@ -22,6 +22,7 @@ class AgentDef(BaseModel):
     soul_md: str | None = None
     llm: LLMConfig
     allow_skills: bool = False
+    max_concurrency: int = Field(default=1, ge=1)
 
 
 
@@ -77,6 +78,7 @@ class AgentLoader:
                 agent_md=body.strip(),
                 llm=merged_llm,
                 allow_skills=frontmatter.get("allow_skills", False),
+                max_concurrency=frontmatter.get("max_concurrency", 1),
             )
         except ValidationError as e:
             raise InvalidDefError("agent", def_id, str(e))

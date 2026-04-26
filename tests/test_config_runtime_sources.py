@@ -47,6 +47,25 @@ def test_runtime_source_key_is_not_treated_as_dot_path() -> None:
         shutil.rmtree(workspace, ignore_errors=True)
 
 
+def test_memories_path_is_configurable_template_var() -> None:
+    workspace = Path(__file__).resolve().parent / f".memory-{uuid.uuid4().hex}"
+    try:
+        workspace.mkdir()
+        _write_minimal_config(workspace)
+        with (workspace / "config.user.yaml").open("a", encoding="utf-8") as f:
+            f.write("memories_path: custom-memory\n")
+
+        config = Config.load(workspace)
+
+        assert config.memories_path == workspace / "custom-memory"
+        assert (
+            config.template_vars()["memories_path"]
+            == (workspace / "custom-memory").resolve().as_posix()
+        )
+    finally:
+        shutil.rmtree(workspace, ignore_errors=True)
+
+
 def _write_cron_ops_skill(workspace: Path) -> None:
     skill_dir = workspace / "skills" / "cron-ops"
     skill_dir.mkdir(parents=True)

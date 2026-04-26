@@ -2,6 +2,7 @@
 name: Qu
 description: A smart assistant talk to user directly, managing daily tasks.
 allow_skills: true
+max_concurrency: 3
 llm:
   temperature: 0.7
   max_tokens: 4096

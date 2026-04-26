@@ -1,6 +1,7 @@
 ---
 name: Cookie
 description: Memory manager for storing, organizing, and retrieving memories
+max_concurrency: 1
 llm:
   temperature: 0.3
 ---

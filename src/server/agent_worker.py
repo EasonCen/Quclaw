@@ -25,6 +25,7 @@ class AgentWorker(SubscriberWorker):
 
     def __init__(self, context):
         super().__init__(context)
+        self._semaphores: dict[str, asyncio.Semaphore] = {}
         self._sessions: dict[str, AgentSession] = {}
         self._session_locks: dict[str, asyncio.Lock] = {}
         self._tasks: set[asyncio.Task[None]] = set()
@@ -37,10 +38,16 @@ class AgentWorker(SubscriberWorker):
         )
 
     def clear_sessions(self) -> None:
-        """Drop cached sessions so future requests use the latest config."""
-        count = len(self._sessions)
+        """Drop cached sessions and concurrency gates after config reload."""
+        session_count = len(self._sessions)
+        semaphore_count = len(self._semaphores)
         self._sessions.clear()
-        self.logger.info("Cleared %s cached agent sessions after config reload", count)
+        self._semaphores.clear()
+        self.logger.info(
+            "Cleared %s cached agent sessions and %s semaphore(s) after config reload",
+            session_count,
+            semaphore_count,
+        )
 
     async def dispatch_event(self, event: AgentWorkEvent) -> None:
         """Create a background executor task for an agent work event."""
@@ -56,34 +63,37 @@ class AgentWorker(SubscriberWorker):
         session_id = event.session_id
         lock = self._session_locks.setdefault(session_id, asyncio.Lock())
 
-        async with lock:
-            heartbeat_snapshot: list[Message] | None = None
-            try:
-                agent_def = self._route_agent_def(event)
-                session = self._get_or_create_session(event, agent_def)
-                if self._should_prune_heartbeat_ok(event):
-                    heartbeat_snapshot = list(session.state.messages)
-                content = await self._run_command_or_chat(event.content, session)
-                if heartbeat_snapshot is not None and is_heartbeat_ok(content):
-                    session.state.replace_messages(
-                        heartbeat_snapshot,
-                        archive=False,
-                        preserve_title=bool(heartbeat_snapshot),
-                    )
-            except asyncio.CancelledError:
-                raise
-            except DefNotFoundError as exc:
-                await self._emit_response(event, "", error=str(exc))
-                return
-            except Exception as exc:
-                self.logger.exception(
-                    "Agent execution failed for session %s",
-                    session_id,
-                )
-                await self._emit_response(event, "", error=str(exc))
-                return
+        heartbeat_snapshot: list[Message] | None = None
+        try:
+            agent_def = self._route_agent_def(event)
+            semaphore = self._get_or_create_semaphore(agent_def)
 
-            await self._emit_response(event, content)
+            async with lock:
+                async with semaphore:
+                    session = self._get_or_create_session(event, agent_def)
+                    if self._should_prune_heartbeat_ok(event):
+                        heartbeat_snapshot = list(session.state.messages)
+                    content = await self._run_command_or_chat(event.content, session)
+                    if heartbeat_snapshot is not None and is_heartbeat_ok(content):
+                        session.state.replace_messages(
+                            heartbeat_snapshot,
+                            archive=False,
+                            preserve_title=bool(heartbeat_snapshot),
+                        )
+        except asyncio.CancelledError:
+            raise
+        except DefNotFoundError as exc:
+            await self._emit_response(event, "", error=str(exc))
+            return
+        except Exception as exc:
+            self.logger.exception(
+                "Agent execution failed for session %s",
+                session_id,
+            )
+            await self._emit_response(event, "", error=str(exc))
+            return
+
+        await self._emit_response(event, content)
 
     @staticmethod
     def _should_prune_heartbeat_ok(event: AgentWorkEvent) -> bool:
@@ -199,3 +209,16 @@ class AgentWorker(SubscriberWorker):
                 error=error,
             )
         )
+
+    def _get_or_create_semaphore(self, agent_def: "AgentDef") -> asyncio.Semaphore:
+        """Get existing or create new semaphore for agent."""
+        if agent_def.id not in self._semaphores:
+            self._semaphores[agent_def.id] = asyncio.Semaphore(
+                agent_def.max_concurrency
+            )
+            self.logger.debug(
+                "Created semaphore for %s with limit %s",
+                agent_def.id,
+                agent_def.max_concurrency,
+            )
+        return self._semaphores[agent_def.id]

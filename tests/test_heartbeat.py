@@ -282,7 +282,7 @@ def test_agent_worker_prunes_heartbeat_ok_from_session_history() -> None:
             class StubAgentWorker(AgentWorker):
                 def _route_agent_def(self, event: DispatchEvent) -> Any:
                     del event
-                    return SimpleNamespace(id="Qu")
+                    return SimpleNamespace(id="Qu", max_concurrency=1)
 
                 def _get_or_create_session(
                     self,
