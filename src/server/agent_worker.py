@@ -49,7 +49,7 @@ class AgentWorker(SubscriberWorker):
 
         async with lock:
             try:
-                agent_def = self._route_agent_def(session_id)
+                agent_def = self._route_agent_def(event)
                 session = self._get_or_create_session(event, agent_def)
                 content = await self._run_command_or_chat(event.content, session)
             except asyncio.CancelledError:
@@ -67,14 +67,16 @@ class AgentWorker(SubscriberWorker):
 
             await self._emit_response(event, content)
 
-    def _route_agent_def(self, session_id: str) -> "AgentDef":
-        """Route a session to its agent definition."""
+    def _route_agent_def(self, event: InboundEvent) -> "AgentDef":
+        """Route an inbound event to its agent definition."""
+        session_id = event.session_id
         session_info = self.context.history_store.get_session_info(session_id)
         if session_info is None:
-            agent_id = self.context.config.default_agent
+            agent_id = self.context.routing_table.resolve(str(event.source))
             self.logger.debug(
-                "Session %s not found in history; using default agent %s",
+                "Session %s not found in history; routed source %s to agent %s",
                 session_id,
+                event.source,
                 agent_id,
             )
         else:

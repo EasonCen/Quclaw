@@ -2,13 +2,11 @@
 
 import asyncio
 import time
-import uuid
 
 from typing import TYPE_CHECKING, Any
 
 from .worker import Worker
 from core.events import EventSource, InboundEvent
-from utils.config import SourceSessionConfig
 
 if TYPE_CHECKING:
     from channel.base import Channel
@@ -180,21 +178,7 @@ class ChannelWorker(Worker):
 
     async def _get_or_create_session_id(self, source: EventSource) -> str:
         """Get or create session ID for a given source."""
-        source_str = str(source)
-
         async with self._source_session_lock:
-            source_session = self.context.config.sources.get(source_str)
-            if source_session:
-                return source_session.session_id
-            
-            source_session = SourceSessionConfig(session_id=uuid.uuid4().hex)
-
-            self.context.config.sources[source_str] = source_session
-            self.context.config.set_runtime(
-                f"sources.{source_str}",
-                source_session,
-            )
-
-            return source_session.session_id
+            return self.context.routing_table.get_or_create_session_id(source)
         
 

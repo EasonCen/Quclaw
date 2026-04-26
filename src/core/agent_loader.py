@@ -8,6 +8,7 @@ from utils.config import Config, LLMConfig
 from utils.def_loader import(
     DefNotFoundError,
     InvalidDefError,
+    discover_definitions,
     parse_definition,
 )
 
@@ -18,6 +19,7 @@ class AgentDef(BaseModel):
     name: str
     description: str = ""
     agent_md: str
+    soul_md: str | None = None
     llm: LLMConfig
     allow_skills: bool = False
 
@@ -42,14 +44,23 @@ class AgentLoader:
             raise DefNotFoundError("agent", agent_id)
 
         try:
-            content = agent_file.read_text()
+            content = agent_file.read_text(encoding="utf-8")
             agent_def = parse_definition(content, agent_id, self._parse_agent_def)
         except InvalidDefError:
             raise
         except Exception as e:
             raise InvalidDefError("agent", agent_id, str(e))
 
-        return agent_def
+        return self._with_soul_md(agent_def)
+    
+    def discover_agents(self) -> list[AgentDef]:
+        """Scan agents directory and load all valid agent definitions."""
+        agents = discover_definitions(
+            self.config.agents_path, "AGENT.md",
+            self._parse_agent_def,
+        )
+        return [self._with_soul_md(agent) for agent in agents]
+
 
     def _parse_agent_def(
         self, def_id: str, frontmatter: dict[str, Any], body: str
@@ -76,4 +87,14 @@ class AgentLoader:
         if agent_llm:
             base = {**base, **agent_llm}
         return LLMConfig(**base)
+
+    def _with_soul_md(self, agent_def: AgentDef) -> AgentDef:
+        """Attach optional SOUL.md content to an agent definition."""
+        soul_file = self.config.agents_path / agent_def.id / "SOUL.md"
+        if not soul_file.exists():
+            return agent_def
+
+        return agent_def.model_copy(
+            update={"soul_md": soul_file.read_text(encoding="utf-8").strip()}
+        )
 

@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="980" viewBox="0 0 1600 980" role="img" aria-labelledby="title desc">
+  <title id="title">/route 变更前后对比</title>
+  <desc id="desc">Shows current route behavior where an existing source remains pinned to an old session, and the proposed behavior where matching source-session cache entries are reset so the next message creates a new session routed to the new agent.</desc>
+  <defs>
+    <marker id="arrow-blue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#246bfe"/>
+    </marker>
+    <marker id="arrow-red" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#d43f3a"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#138a63"/>
+    </marker>
+    <style>
+      .bg { fill: #f7f8fb; }
+      .panel { fill: #ffffff; stroke: #ccd3df; stroke-width: 2; }
+      .panel-title { font: 700 30px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #1f2937; }
+      .panel-subtitle { font: 400 18px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #596273; }
+      .title { font: 800 40px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #111827; }
+      .subtitle { font: 400 20px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #4b5563; }
+      .box { fill: #ffffff; stroke: #9aa7bb; stroke-width: 2; }
+      .source { fill: #e8f1ff; stroke: #246bfe; }
+      .runtime { fill: #fff8df; stroke: #d59b00; }
+      .history { fill: #f1ecff; stroke: #7c55d9; }
+      .agent-old { fill: #ffe9e7; stroke: #d43f3a; }
+      .agent-new { fill: #e4f8ef; stroke: #138a63; }
+      .route { fill: #ecfbff; stroke: #0096b8; }
+      .muted { fill: #f3f4f6; stroke: #9ca3af; }
+      .box-title { font: 700 19px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #111827; }
+      .box-text { font: 400 16px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #374151; }
+      .tiny { font: 400 14px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #6b7280; }
+      .arrow-blue { stroke: #246bfe; stroke-width: 4; fill: none; marker-end: url(#arrow-blue); }
+      .arrow-red { stroke: #d43f3a; stroke-width: 4; fill: none; marker-end: url(#arrow-red); }
+      .arrow-green { stroke: #138a63; stroke-width: 4; fill: none; marker-end: url(#arrow-green); }
+      .dash { stroke-dasharray: 9 8; }
+      .note-red { fill: #fff1f0; stroke: #f1a7a3; stroke-width: 2; }
+      .note-green { fill: #eefcf5; stroke: #90d9bd; stroke-width: 2; }
+      .note-title-red { font: 700 18px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #a12d28; }
+      .note-title-green { font: 700 18px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #0f6d4f; }
+      .code { font: 600 15px Consolas, "Cascadia Mono", monospace; fill: #1f2937; }
+      .strike { stroke: #d43f3a; stroke-width: 4; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1600" height="980"/>
+
+  <text class="title" x="72" y="70">/route 新增规则后，为什么已有 source 可能“不生效”</text>
+  <text class="subtitle" x="72" y="108">关键点：source 先命中 runtime 的 session cache；只要旧 session 还在，就会继续使用 history 里的旧 agent。</text>
+
+  <rect class="panel" x="60" y="150" width="710" height="760" rx="10"/>
+  <rect class="panel" x="830" y="150" width="710" height="760" rx="10"/>
+
+  <text class="panel-title" x="100" y="205">现在的行为：route 写入了，但旧 source 仍走旧 session</text>
+  <text class="panel-subtitle" x="100" y="235">适合解释“命令成功了，为什么下一条还是旧 agent”</text>
+
+  <rect class="box source" x="115" y="275" width="250" height="82" rx="8"/>
+  <text class="box-title" x="135" y="306">消息来源 Source</text>
+  <text class="code" x="135" y="333">platform-ws:client-1</text>
+
+  <rect class="box runtime" x="430" y="275" width="250" height="82" rx="8"/>
+  <text class="box-title" x="450" y="306">Runtime Cache</text>
+  <text class="code" x="450" y="333">source -&gt; S1</text>
+
+  <path class="arrow-blue" d="M365 316 H420"/>
+  <text class="tiny" x="370" y="297">先查</text>
+
+  <rect class="box history" x="430" y="405" width="250" height="82" rx="8"/>
+  <text class="box-title" x="450" y="436">History Index</text>
+  <text class="code" x="450" y="463">S1 -&gt; agent: Qu</text>
+
+  <path class="arrow-blue" d="M555 357 V395"/>
+  <text class="tiny" x="570" y="382">找到 S1</text>
+
+  <rect class="box agent-old" x="115" y="405" width="250" height="82" rx="8"/>
+  <text class="box-title" x="135" y="436">AgentWorker</text>
+  <text class="box-text" x="135" y="463">恢复 S1，继续使用 Qu</text>
+
+  <path class="arrow-red" d="M430 446 H375"/>
+
+  <rect class="box route" x="115" y="555" width="565" height="82" rx="8"/>
+  <text class="box-title" x="135" y="586">新写入的路由规则</text>
+  <text class="code" x="135" y="613">/route platform-ws:client-1 coder</text>
+
+  <path class="arrow-red dash" d="M397 555 C397 520 397 500 397 485"/>
+  <line class="strike" x1="378" y1="510" x2="416" y2="548"/>
+  <line class="strike" x1="416" y1="510" x2="378" y2="548"/>
+  <text class="tiny" x="420" y="522">被旧 session cache 绕过去</text>
+
+  <rect class="note-red" x="115" y="700" width="565" height="125" rx="8"/>
+  <text class="note-title-red" x="140" y="735">问题</text>
+  <text class="box-text" x="140" y="765">/route 确实写进了配置，但已有 source 已经绑定到 S1。</text>
+  <text class="box-text" x="140" y="793">S1 的 history 记录 agent 是 Qu，所以不会重新 resolve 到 coder。</text>
+
+  <text class="panel-title" x="870" y="205">建议的行为：route 后重置匹配 source 的 session cache</text>
+  <text class="panel-subtitle" x="870" y="235">保留旧历史，但让下一条消息创建新 session 并进入新 agent</text>
+
+  <rect class="box route" x="885" y="275" width="565" height="82" rx="8"/>
+  <text class="box-title" x="905" y="306">1. 写入新的路由规则</text>
+  <text class="code" x="905" y="333">platform-ws:client-1 -&gt; coder</text>
+
+  <rect class="box runtime" x="885" y="405" width="250" height="92" rx="8"/>
+  <text class="box-title" x="905" y="436">2. Runtime Cache</text>
+  <text class="code" x="905" y="463">source -&gt; S1</text>
+  <text class="tiny" x="905" y="485">匹配新 route，删除这条 cache</text>
+
+  <rect class="box history" x="1200" y="405" width="250" height="92" rx="8"/>
+  <text class="box-title" x="1220" y="436">旧 History 保留</text>
+  <text class="code" x="1220" y="463">S1 -&gt; agent: Qu</text>
+  <text class="tiny" x="1220" y="485">不改旧 session，不污染上下文</text>
+
+  <path class="arrow-green" d="M1167 357 C1167 380 1075 380 1030 400"/>
+  <path class="arrow-blue dash" d="M1135 451 H1190"/>
+  <text class="tiny" x="1145" y="432">只保留历史</text>
+
+  <rect class="box source" x="885" y="570" width="250" height="82" rx="8"/>
+  <text class="box-title" x="905" y="601">3. 下一条消息</text>
+  <text class="code" x="905" y="628">platform-ws:client-1</text>
+
+  <rect class="box runtime" x="1200" y="570" width="250" height="82" rx="8"/>
+  <text class="box-title" x="1220" y="601">4. 创建新 session</text>
+  <text class="code" x="1220" y="628">source -&gt; S2</text>
+
+  <path class="arrow-green" d="M1135 611 H1190"/>
+  <text class="tiny" x="1145" y="592">cache miss</text>
+
+  <rect class="box agent-new" x="1042" y="700" width="250" height="82" rx="8"/>
+  <text class="box-title" x="1062" y="731">5. AgentWorker</text>
+  <text class="code" x="1062" y="758">S2 -&gt; agent: coder</text>
+
+  <path class="arrow-green" d="M1325 652 C1325 690 1295 715 1302 738"/>
+  <path class="arrow-green" d="M1010 652 C1010 690 1038 715 1034 738"/>
+  <text class="tiny" x="1080" y="675">新 session 才走新 route</text>
+
+  <rect class="note-green" x="885" y="820" width="565" height="68" rx="8"/>
+  <text class="note-title-green" x="910" y="850">推荐语义</text>
+  <text class="box-text" x="910" y="876">session 归属不可变；route 变更只让匹配 source 下一次开新 session。</text>
+
+  <rect class="box muted" x="570" y="905" width="460" height="44" rx="22"/>
+  <text class="box-text" x="610" y="933">一句话：不迁移旧会话，只重置 source 到 session 的指针。</text>
+</svg>

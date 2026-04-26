@@ -150,6 +150,7 @@ class Config(BaseModel):
     channels: ChannelConfig = Field(default_factory=ChannelConfig)
     websocket: WebSocketConfig = Field(default_factory=WebSocketConfig)
     sources: dict[str, SourceSessionConfig] = Field(default_factory=dict)
+    routing: dict = Field(default_factory=lambda: {"bindings": []})
     default_delivery_source: str | None = None
 
 
@@ -266,6 +267,30 @@ class Config(BaseModel):
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(data, f)
 
+    def _remove_mapping_value(
+        self,
+        config_path: Path,
+        mapping_key: str,
+        item_key: str,
+    ) -> bool:
+        """Remove one key inside a top-level mapping without dot-path parsing."""
+        if not config_path.exists():
+            return False
+
+        with open(config_path, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+
+        mapping = data.get(mapping_key)
+        if not isinstance(mapping, dict) or item_key not in mapping:
+            return False
+
+        del mapping[item_key]
+
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.dump(data, f)
+
+        return True
+
     def set_user(self, key: str, value: Any) -> None:
         """Update a config value in config.user.yaml."""
         self._set_config_value(self.workspace / "config.user.yaml", key, value)
@@ -287,6 +312,16 @@ class Config(BaseModel):
             source,
             value,
         )
+
+    def remove_runtime_source(self, source: str) -> bool:
+        """Remove runtime source affinity while preserving source as a literal key."""
+        removed_memory = self.sources.pop(source, None) is not None
+        removed_file = self._remove_mapping_value(
+            self.workspace / "config.runtime.yaml",
+            "sources",
+            source,
+        )
+        return removed_memory or removed_file
 
     def reload(self) -> bool:
         """Re-read config.user.yaml and merge with runtime."""

@@ -105,11 +105,14 @@ class CommandRegistry:
         """Create a command registry with builtin slash commands."""
 
         from core.commands.handlers import (
+            AgentCommand,
             CompactCommand,
             ContextCommand,
             HelpCommand,
             SessionCommand,
             SkillsCommand,
+            RouteCommand,
+            BindingsCommand,
         )
 
         registry = cls()
@@ -118,6 +121,9 @@ class CommandRegistry:
         registry.register(ContextCommand())
         registry.register(CompactCommand())
         registry.register(SkillsCommand())
+        registry.register(AgentCommand())
+        registry.register(RouteCommand())
+        registry.register(BindingsCommand())
         return registry
 
     @staticmethod

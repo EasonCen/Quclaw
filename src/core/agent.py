@@ -176,6 +176,16 @@ class AgentSession:
     def session_id(self) -> str:
         """Delegate to state."""
         return self.state.session_id
+    
+    @property
+    def source(self) -> EventSource:
+        """Delegate to state."""
+        return self.state.source
+    
+    @property
+    def shared_context(self) -> "SharedContext":
+        """Delegate to state."""
+        return self.agent.context
 
     async def chat(self, message: str) -> str:
         """Send a message to the LLM and get a response."""

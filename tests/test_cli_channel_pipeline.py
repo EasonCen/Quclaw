@@ -9,6 +9,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from core.events import CliEventSource, EventSource, InboundEvent
+from core.routing import RoutingTable
 from server.channel_worker import ChannelWorker
 from utils.config import SourceSessionConfig
 
@@ -30,11 +31,16 @@ class FakeConfig:
     def set_runtime(self, key: str, value: Any) -> None:
         self.runtime[key] = value
 
+    def set_runtime_source(self, source: str, value: SourceSessionConfig) -> None:
+        self.sources[source] = value
+        self.runtime.setdefault("sources", {})[source] = value
+
 
 class FakeContext:
     def __init__(self) -> None:
         self.config = FakeConfig()
         self.eventbus = FakeEventBus()
+        self.routing_table = RoutingTable(self)
 
 
 class FakeCliChannel:

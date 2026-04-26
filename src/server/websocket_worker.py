@@ -19,7 +19,6 @@ from core.events import (
     OutboundEvent,
     WebSocketEventSource,
 )
-from utils.config import SourceSessionConfig
 
 if TYPE_CHECKING:
     from core.context import SharedContext
@@ -176,19 +175,8 @@ class WebSocketWorker(Worker):
         source: EventSource,
     ) -> str:
         """Get or create session affinity for a WebSocket source."""
-        source_str = str(source)
         async with self._source_session_lock:
-            source_session = self.context.config.sources.get(source_str)
-            if source_session is not None:
-                return source_session.session_id
-
-            session_id = uuid.uuid4().hex
-            self.context.config.set_runtime_source(
-                source_str,
-                SourceSessionConfig(session_id=session_id),
-            )
-
-            return session_id
+            return self.context.routing_table.get_or_create_session_id(source)
 
     async def _subscribe_client(self, ws: WebSocket, source_key: str) -> None:
         """Subscribe a connection to a source without dropping earlier sources."""

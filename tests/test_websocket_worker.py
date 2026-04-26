@@ -19,6 +19,7 @@ from core.events import (
     WebSocketEventSource,
 )
 from core.eventbus import EventBus
+from core.routing import RoutingTable
 from server.websocket_worker import WebSocketMessage, WebSocketWorker
 from utils.config import SourceSessionConfig, WebSocketConfig
 
@@ -71,6 +72,7 @@ class FakeContext:
         self.eventbus = FakeEventBus()
         self.channels = []
         self.websocket_worker = None
+        self.routing_table = RoutingTable(self)
 
 
 class FakeConfig:
