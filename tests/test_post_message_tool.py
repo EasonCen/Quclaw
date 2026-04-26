@@ -64,6 +64,11 @@ class FakeHistoryStore:
         return {}
 
 
+class FakeAgentLoader:
+    def discover_agents(self) -> list[Any]:
+        return []
+
+
 class FakeContext:
     def __init__(
         self,
@@ -82,6 +87,7 @@ class FakeContext:
         self.eventbus = FakeEventBus()
         self.history_store = FakeHistoryStore()
         self.skill_loader = SimpleNamespace()
+        self.agent_loader = FakeAgentLoader()
 
 
 def test_post_message_tool_is_not_created_when_channels_disabled() -> None:

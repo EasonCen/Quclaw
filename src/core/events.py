@@ -233,6 +233,8 @@ class DispatchEvent(Event):
     """Event for internal work dispatched to an agent."""
 
     target_agent_id: str | None = None
+    parent_session_id: str | None = None
+    retry_count: int = 0
 
 
 @dataclass

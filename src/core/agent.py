@@ -18,6 +18,7 @@ from tools.registry import ToolRegistry
 from tools.skill_tools import create_skill_tool
 from tools.webread_tool import create_webread_tool
 from tools.websearch_tool import create_websearch_tool
+from tools.subagent_tool import create_subagent_dispatch_tool
 
 if TYPE_CHECKING:
     from core.agent_loader import AgentDef
@@ -75,6 +76,11 @@ class Agent:
             post_tool = create_post_message_tool(self.context)
             if post_tool:
                 registry.register(post_tool)
+
+
+        subagent_tool = create_subagent_dispatch_tool(self.agent_def.id, self.context)
+        if subagent_tool:
+            registry.register(subagent_tool)
 
         return registry
 
