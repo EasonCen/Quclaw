@@ -39,6 +39,7 @@ def compute_backoff_ms(retry_count: int) -> int:
 PLATFORM_LIMITS: dict[str, int | None] = {
     "telegram": 4096,
     "discord": 2000,
+    "feishu": 30000,
     "cli": None,  # no limit
 }
 

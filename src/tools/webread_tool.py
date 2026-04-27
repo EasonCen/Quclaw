@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 def create_webread_tool(config: "Config") -> BaseTool | None:
     """Factory to create webread tool with injected config."""
-    if not config.webread:
+    if not config.webread or not config.webread.enabled:
         return None
 
     provider = WebReadProvider.from_config(config)

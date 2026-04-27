@@ -52,6 +52,7 @@ class Channel(ABC, Generic[T]):
         # Inline imports to avoid circular dependency
         from channel.telegram_channel import TelegramChannel
         from channel.discord_channel import DiscordChannel
+        from channel.feishu_channel import FeishuChannel
 
         channels: list["Channel[Any]"] = []
         channel_config = config.channels
@@ -63,5 +64,8 @@ class Channel(ABC, Generic[T]):
 
         if channel_config.discord and channel_config.discord.enabled:
             channels.append(DiscordChannel(channel_config.discord))
+
+        if channel_config.feishu and channel_config.feishu.enabled:
+            channels.append(FeishuChannel(channel_config.feishu))
 
         return channels

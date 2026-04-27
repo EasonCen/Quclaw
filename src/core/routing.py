@@ -102,7 +102,7 @@ class RoutingTable:
         return self.context.config.default_agent
 
     def persist_binding(self, source_pattern: str, agent_id: str) -> None:
-        """Add and persist a routing binding to config.user.yaml."""
+        """Add and persist a routing binding to config.user.json."""
         binding = Binding(
             value=source_pattern.strip(),
             agent=agent_id.strip(),

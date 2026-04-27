@@ -1,5 +1,6 @@
 """Configuration management."""
 
+import json
 import logging
 from pathlib import Path
 from typing import Any, Callable, Literal
@@ -14,6 +15,12 @@ from watchdog.observers.api import BaseObserver
 from utils.config_validators import coerce_id_list, coerce_optional_id
 
 ConfigChangeCallback = Callable[[], None]
+USER_CONFIG_STEM = "config.user"
+RUNTIME_CONFIG_STEM = "config.runtime"
+CONFIG_SUFFIXES = (".json", ".yaml", ".yml")
+WATCHED_USER_CONFIG_NAMES = {
+    f"{USER_CONFIG_STEM}{suffix}" for suffix in CONFIG_SUFFIXES
+}
 
 
 class LLMConfig(BaseModel):
@@ -67,9 +74,50 @@ class DiscordConfig(BaseModel):
         return coerce_id_list(value)
 
 
+class FeishuConfig(BaseModel):
+    """Feishu platform configuration."""
+
+    enabled: bool = True
+    app_id: str
+    app_secret: str
+    verification_token: str | None = None
+    host: str = "127.0.0.1"
+    port: int = Field(default=6950, ge=1, le=65535)
+    path: str = "/feishu/events"
+    domain: str = "https://open.feishu.cn"
+    chat_id: str | None = None
+    allowed_chat_ids: list[str] = Field(default_factory=list)
+    allowed_user_ids: list[str] = Field(default_factory=list)
+
+    @field_validator("path")
+    @classmethod
+    def path_must_start_with_slash(cls, value: str) -> str:
+        if not value.startswith("/"):
+            raise ValueError("feishu.path must start with '/'")
+        return value
+
+    @field_validator("domain")
+    @classmethod
+    def domain_must_be_url(cls, value: str) -> str:
+        if not value.startswith(("http://", "https://")):
+            raise ValueError("feishu.domain must be a valid URL")
+        return value.rstrip("/")
+
+    @field_validator("chat_id", mode="before")
+    @classmethod
+    def chat_id_must_be_string(cls, value: Any) -> str | None:
+        return coerce_optional_id(value)
+
+    @field_validator("allowed_chat_ids", "allowed_user_ids", mode="before")
+    @classmethod
+    def allowed_ids_must_be_strings(cls, value: Any) -> list[str]:
+        return coerce_id_list(value)
+
+
 class TavilySearchConfig(BaseModel):
     """Configuration for Tavily web search provider."""
 
+    enabled: bool = True
     provider: Literal["tavily"] = "tavily"
     api_key: str
     search_depth: Literal["basic", "advanced"] = "basic"
@@ -88,6 +136,7 @@ class TavilySearchConfig(BaseModel):
 class TavilyWebReadConfig(BaseModel):
     """Configuration for Tavily web read provider."""
 
+    enabled: bool = True
     provider: Literal["tavily"] = "tavily"
     api_key: str
     extract_depth: Literal["basic", "advanced"] = "basic"
@@ -114,6 +163,7 @@ class ChannelConfig(BaseModel):
     enabled: bool = False
     telegram: TelegramConfig | None = None
     discord: DiscordConfig | None = None
+    feishu: FeishuConfig | None = None
 
 
 class WebSocketConfig(BaseModel):
@@ -216,21 +266,53 @@ class Config(BaseModel):
 
     @classmethod
     def _load_merged_configs(cls, workspace_dir: Path) -> dict[str, Any]:
-        """Load config from YAML file."""
+        """Load user and runtime config files from the workspace."""
         config_data: dict[str, Any] = {}
 
-        user_config = workspace_dir / "config.user.yaml"
-        runtime_config = workspace_dir / "config.runtime.yaml"
-
-        if user_config.exists():
-            with open(user_config) as f:
-                config_data = cls._deep_merge(config_data, yaml.safe_load(f) or {})
-
-        if runtime_config.exists():
-            with open(runtime_config) as f:
-                config_data = cls._deep_merge(config_data, yaml.safe_load(f) or {})
+        for config_stem in (USER_CONFIG_STEM, RUNTIME_CONFIG_STEM):
+            config_path = cls.find_config_path(workspace_dir, config_stem)
+            if config_path is None:
+                continue
+            config_data = cls._deep_merge(
+                config_data,
+                cls._load_config_file(config_path),
+            )
 
         return config_data
+
+    @classmethod
+    def find_config_path(cls, workspace_dir: Path, stem: str) -> Path | None:
+        """Return the preferred existing config path for a logical config file."""
+        for suffix in CONFIG_SUFFIXES:
+            config_path = workspace_dir / f"{stem}{suffix}"
+            if config_path.exists():
+                return config_path
+        return None
+
+    @classmethod
+    def find_user_config_path(cls, workspace_dir: Path) -> Path | None:
+        """Return the existing user config path, preferring JSON."""
+        return cls.find_config_path(workspace_dir, USER_CONFIG_STEM)
+
+    @staticmethod
+    def _json_config_path(workspace_dir: Path, stem: str) -> Path:
+        """Return the canonical JSON config path for a logical config file."""
+        return workspace_dir / f"{stem}.json"
+
+    @staticmethod
+    def _load_config_file(config_path: Path) -> dict[str, Any]:
+        """Load one JSON config file, with YAML accepted for legacy workspaces."""
+        with open(config_path, encoding="utf-8") as f:
+            if config_path.suffix == ".json":
+                data = json.load(f)
+            else:
+                data = yaml.safe_load(f)
+
+        if data is None:
+            return {}
+        if not isinstance(data, dict):
+            raise ValueError(f"{config_path.name} must contain a config object")
+        return data
     
     @staticmethod
     def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
@@ -260,23 +342,15 @@ class Config(BaseModel):
         obj[keys[-1]] = value
         
     def _set_config_value(self, config_path: Path, key: str, value: Any) -> None:
-        """Update a config value in a YAML file."""
-        # Load existing or start fresh
-        if config_path.exists():
-            with open(config_path, encoding="utf-8") as f:
-                data = yaml.safe_load(f) or {}
-        else:
-            data = {}
+        """Update a config value in a JSON config file."""
+        data = self._load_edit_data(config_path)
 
-        if isinstance(value, BaseModel):
-            value = value.model_dump()
+        value = self._to_config_data(value)
 
         # Update the key (supports nested via dot notation)
         self._set_nested(data, key, value)
 
-        # Write back
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(data, f)
+        self._write_config_file(config_path, data)
 
     def _set_mapping_value(
         self,
@@ -286,24 +360,18 @@ class Config(BaseModel):
         value: Any,
     ) -> None:
         """Update one key inside a top-level mapping without dot-path parsing."""
-        if config_path.exists():
-            with open(config_path, encoding="utf-8") as f:
-                data = yaml.safe_load(f) or {}
-        else:
-            data = {}
+        data = self._load_edit_data(config_path)
 
         mapping = data.get(mapping_key)
         if not isinstance(mapping, dict):
             mapping = {}
             data[mapping_key] = mapping
 
-        if isinstance(value, BaseModel):
-            value = value.model_dump()
+        value = self._to_config_data(value)
 
         mapping[item_key] = value
 
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(data, f)
+        self._write_config_file(config_path, data)
 
     def _remove_mapping_value(
         self,
@@ -312,11 +380,9 @@ class Config(BaseModel):
         item_key: str,
     ) -> bool:
         """Remove one key inside a top-level mapping without dot-path parsing."""
-        if not config_path.exists():
+        data = self._load_edit_data(config_path)
+        if not data:
             return False
-
-        with open(config_path, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
 
         mapping = data.get(mapping_key)
         if not isinstance(mapping, dict) or item_key not in mapping:
@@ -324,18 +390,69 @@ class Config(BaseModel):
 
         del mapping[item_key]
 
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(data, f)
+        self._write_config_file(config_path, data)
 
         return True
 
+    @classmethod
+    def _load_edit_data(cls, config_path: Path) -> dict[str, Any]:
+        """Load data for editing, seeding JSON from a legacy YAML file if needed."""
+        if config_path.exists():
+            return cls._load_config_file(config_path)
+
+        legacy_path = cls.find_config_path(config_path.parent, config_path.stem)
+        if legacy_path is not None:
+            return cls._load_config_file(legacy_path)
+
+        return {}
+
+    @classmethod
+    def _write_config_file(cls, config_path: Path, data: dict[str, Any]) -> None:
+        """Write a config file, using JSON for canonical workspace config."""
+        plain_data = cls._to_config_data(data)
+        with open(config_path, "w", encoding="utf-8") as f:
+            if config_path.suffix == ".json":
+                json.dump(plain_data, f, ensure_ascii=False, indent=2)
+                f.write("\n")
+            else:
+                yaml.safe_dump(
+                    plain_data,
+                    f,
+                    allow_unicode=True,
+                    sort_keys=False,
+                )
+
+    @classmethod
+    def _to_config_data(cls, value: Any) -> Any:
+        """Convert pydantic/path values into JSON-serializable config data."""
+        if isinstance(value, BaseModel):
+            return value.model_dump(mode="json")
+        if isinstance(value, Path):
+            return str(value)
+        if isinstance(value, dict):
+            return {
+                str(item_key): cls._to_config_data(item_value)
+                for item_key, item_value in value.items()
+            }
+        if isinstance(value, (list, tuple, set)):
+            return [cls._to_config_data(item) for item in value]
+        return value
+
     def set_user(self, key: str, value: Any) -> None:
-        """Update a config value in config.user.yaml."""
-        self._set_config_value(self.workspace / "config.user.yaml", key, value)
+        """Update a config value in config.user.json."""
+        self._set_config_value(
+            self._json_config_path(self.workspace, USER_CONFIG_STEM),
+            key,
+            value,
+        )
 
     def set_runtime(self, key: str, value: Any) -> None:
-        """Update a runtime value in config.runtime.yaml."""
-        self._set_config_value(self.workspace / "config.runtime.yaml", key, value)
+        """Update a runtime value in config.runtime.json."""
+        self._set_config_value(
+            self._json_config_path(self.workspace, RUNTIME_CONFIG_STEM),
+            key,
+            value,
+        )
 
     def set_runtime_source(
         self,
@@ -345,7 +462,7 @@ class Config(BaseModel):
         """Update runtime source affinity while preserving source as a literal key."""
         self.sources[source] = value
         self._set_mapping_value(
-            self.workspace / "config.runtime.yaml",
+            self._json_config_path(self.workspace, RUNTIME_CONFIG_STEM),
             "sources",
             source,
             value,
@@ -355,14 +472,14 @@ class Config(BaseModel):
         """Remove runtime source affinity while preserving source as a literal key."""
         removed_memory = self.sources.pop(source, None) is not None
         removed_file = self._remove_mapping_value(
-            self.workspace / "config.runtime.yaml",
+            self._json_config_path(self.workspace, RUNTIME_CONFIG_STEM),
             "sources",
             source,
         )
         return removed_memory or removed_file
 
     def reload(self) -> bool:
-        """Re-read config.user.yaml and merge with runtime."""
+        """Re-read user config and merge with runtime config."""
         try:
             config_data = self._load_merged_configs(self.workspace)
             config_data["workspace"] = self.workspace
@@ -387,11 +504,11 @@ class ConfigHandler(FileSystemEventHandler):
         self._on_change = on_change
 
     def on_modified(self, event: FileSystemEvent) -> None:
-        """Notify when config.user.yaml changes."""
+        """Notify when user config changes."""
         if event.is_directory:
             return
 
-        if Path(str(event.src_path)).name != "config.user.yaml":
+        if Path(str(event.src_path)).name not in WATCHED_USER_CONFIG_NAMES:
             return
 
         try:

@@ -10,7 +10,7 @@ Quclaw 是一个用 Python 复现的轻量版 OpenClaw 风格 Agent 框架。项
 - 内置文件读写、编辑、Shell 工具
 - Skill 加载机制
 - EventBus 驱动的后台服务
-- CLI、WebSocket、Telegram、Discord 接入
+- CLI、WebSocket、Telegram、Discord、飞书接入
 - Cron 定时任务和 Heartbeat 后台检查
 - Cron 场景下的主动消息发送 `post_message`
 - 多 Agent 协作 `subagent_dispatch`
@@ -21,15 +21,15 @@ Quclaw 是一个用 Python 复现的轻量版 OpenClaw 风格 Agent 框架。项
 
 ### 运行时架构
 
-![Quclaw 运行时架构](docs/runtime-architecture-cn.svg)
+![Quclaw 运行时架构](docs/runtime-architecture-v2-cn.png)
 
 ### 事件流
 
-![Quclaw 事件流](docs/event-flow-cn.svg)
+![Quclaw 事件流](docs/event-flow-v2-cn.png)
 
 ### 长期记忆流程
 
-![Quclaw 长期记忆流程](docs/memory-agent-flow-cn.svg)
+![Quclaw 长期记忆流程](docs/memory-agent-flow-v2-cn.png)
 
 ## 环境要求
 
@@ -47,10 +47,12 @@ uv sync
 准备配置文件：
 
 ```powershell
-Copy-Item default_workspace/config.example.yaml default_workspace/config.user.yaml
+Copy-Item default_workspace/config.example.json default_workspace/config.user.json
 ```
 
-然后在 `default_workspace/config.user.yaml` 中配置 LLM provider、model 和 API key。
+然后在 `default_workspace/config.user.json` 中配置 LLM provider、model 和 API key。
+如需启用联网搜索和网页读取，配置 `websearch` / `webread` 中的 Tavily
+`api_key`，并把对应的 `enabled` 改为 `true`。
 
 启动 CLI 对话：
 
@@ -70,8 +72,8 @@ uv run quclaw --workspace default_workspace server
 
 ```text
 default_workspace/
-├── config.user.yaml       # 用户配置：LLM、渠道、路径、路由等
-├── config.runtime.yaml    # 运行时状态，程序自动维护
+├── config.user.json       # 用户配置：LLM、渠道、路径、路由等
+├── config.runtime.json    # 运行时状态，程序自动维护
 ├── AGENTS.md              # workspace 内 Agent 协作规则
 ├── BOOTSTRAP.md           # workspace 通用上下文
 ├── HEARTBEAT.md           # 静默后台检查清单
@@ -88,6 +90,14 @@ default_workspace/
     ├── projects/
     └── daily-notes/
 ```
+
+- 工作空间（workspace/） 是纯文件驱动的配置层，所有行为都从这里声明——config.json 决定用哪个 LLM 和渠道，AGENT.md 定义 Agent 人格，MEMORY.md 持久化跨会话记忆，skills/ 里放 SKILL.md 教会 Agent 新技能。这是 OpenClaw 哲学的核心：行为即文件。
+- Agent 核心 是 agentic loop 的实现，负责组装多层 prompt、调用工具、处理工具结果、压缩上下文（compaction）、在压缩前把重要信息写入记忆，以及响应 slash commands。
+- Gateway 服务层 把 Agent 从 CLI 解放出来，变成一个常驻后台的事件驱动服务——Event Bus 负责路由，WebSocket 让外部程序接入，Cron Heartbeat 让 Agent 能主动定时工作，Config Hot Reload 改配置不用重启。
+- Channel 层：EventSource、Channel、CliChannel、TelegramChannel、DiscordChannel、ChannelWorker、DeliveryWorker、outbox retry 持久投递。
+- 工具层 是水平共享的能力：搜索、抓页面、读写文件、执行 shell 命令，以及最终阶段加入的 Agent Dispatch（派遣子 Agent 干活）。
+- 多 Agent 编排 在最顶层，Router Agent 根据任务类型把请求分发给专门的 Agent，实现分工协作。
+
 
 ## Agent 配置
 
@@ -113,8 +123,10 @@ llm:
 
 记忆目录由 `memories_path` 配置，默认是：
 
-```yaml
-memories_path: memories
+```json
+{
+  "memories_path": "memories"
+}
 ```
 
 默认记忆结构：

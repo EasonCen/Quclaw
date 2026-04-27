@@ -83,7 +83,7 @@ class LLMProvider:
         if isinstance(completion, str):
             raise ValueError(
                 "LLM API returned plain text instead of an OpenAI chat completion. "
-                "Check llm.model/base_url/api_key in config.user.yaml."
+                "Check llm.model/base_url/api_key in config.user.json."
             )
 
         if isinstance(completion, dict):

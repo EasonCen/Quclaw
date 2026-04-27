@@ -145,7 +145,7 @@ class Agent:
         # Get all messages (no max_history limit)
         history_messages = self.context.history_store.get_messages(session_id)
 
-        # Convert HistoryMessage to litellm Message format
+        # Convert HistoryMessage to Message format
         messages: list[Message] = [msg.to_message() for msg in history_messages]
 
         # Build tools for resumed session

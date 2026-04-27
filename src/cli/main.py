@@ -40,12 +40,15 @@ def main(
         callback=workspace_callback,
     ),
 ) -> None:
-    """Configuration is loaded from workspace/config.user.yaml by default."""
+    """Configuration is loaded from workspace/config.user.json by default."""
     workspace_path = ctx.obj["workspace"]
-    config_file = workspace_path / "config.user.yaml"
+    config_file = Config.find_user_config_path(workspace_path)
 
-    if not config_file.exists():
-        console.print(f"[yellow]No configuration found at {config_file}[/yellow]")
+    if config_file is None:
+        console.print(
+            "[yellow]No configuration found. Expected "
+            "config.user.json (or legacy config.user.yaml).[/yellow]"
+        )
         raise typer.Exit(1)
 
     try:

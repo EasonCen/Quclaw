@@ -64,7 +64,7 @@ class HistoryMessage(BaseModel):
 
     @classmethod
     def from_message(cls, message: Message) -> "HistoryMessage":
-        """Create HistoryMessage from litellm Message format."""
+        """Create a persisted history record from a runtime LLM message."""
         return cls(
             timestamp=str(message.get("timestamp") or _now_iso()),
             role=message["role"],
@@ -74,7 +74,7 @@ class HistoryMessage(BaseModel):
         )
 
     def to_message(self) -> Message:
-        """Convert HistoryMessage to litellm Message format."""
+        """Convert this history record back to the runtime LLM message shape."""
         message: Message = {
             "role": self.role,
             "content": self.content,

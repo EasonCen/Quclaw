@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 def create_websearch_tool(config: "Config") -> BaseTool | None:
     """Factory to create websearch tool with injected config."""
-    if not config.websearch:
+    if not config.websearch or not config.websearch.enabled:
         return None
 
     provider = WebSearchProvider.from_config(config)
