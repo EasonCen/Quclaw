@@ -33,7 +33,7 @@ Quclaw 是一个用 Python 复现的轻量版 OpenClaw 风格 Agent 框架。项
 
 ## 环境要求
 
-- Python 3.14+
+- Python 3.12+
 - 推荐使用 `uv` 管理依赖
 
 ## 快速开始
