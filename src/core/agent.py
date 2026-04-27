@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from core.context_guard import ContextGuard
-from core.events import EventSource
+from runtime.events import EventSource
 from core.session_state import SessionState
 from provider.llm.base import LLMProvider, LLMToolCall, Message
 from tools.base import tool_call_to_message
@@ -50,7 +50,7 @@ class Agent:
     def skill_loader(self) -> "SkillLoader":
         """Return the shared skill loader."""
         return self.context.skill_loader
-    
+
     def _get_token_threshold(self) -> int:
         """Get token threshold from workspace configuration."""
         return self.context.config.context.token_threshold
@@ -92,10 +92,10 @@ class Agent:
         """Create a new conversation session for an event source."""
         session_id = session_id or uuid.uuid4().hex
         tools = self._build_tools(include_post_message=source.is_cron)
-        
+
         # Create context guard for this session
         context_guard = ContextGuard(
-            shared_context=self.context, 
+            shared_context=self.context,
             token_threshold=self._get_token_threshold(),
         )
         state = SessionState(
@@ -114,8 +114,8 @@ class Agent:
         )
 
         self.context.history_store.create_session(
-            self.agent_def.id, 
-            session_id, 
+            self.agent_def.id,
+            session_id,
             source,
         )
         return session
@@ -188,12 +188,12 @@ class AgentSession:
     def session_id(self) -> str:
         """Delegate to state."""
         return self.state.session_id
-    
+
     @property
     def source(self) -> EventSource:
         """Delegate to state."""
         return self.state.source
-    
+
     @property
     def shared_context(self) -> "SharedContext":
         """Delegate to state."""

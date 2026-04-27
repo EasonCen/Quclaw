@@ -10,7 +10,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Awaitable, Callable, TypeVar, TYPE_CHECKING
 
-from server.worker import Worker
+from server.workers.base import Worker
 
 from .events import (
     Event,

@@ -1,0 +1,88 @@
+{
+  "llm": {
+    "provider": "openai",
+    "model": "gpt-5",
+    "api_key": "sk-your-openai-api-key-here",
+    "base_url": null,
+    "temperature": 0.7,
+    "max_tokens": 2048
+  },
+  "default_agent": "Qu",
+  "memories_path": "memories",
+  "context": {
+    "token_threshold": 160000
+  },
+  "heartbeat": {
+    "interval_minutes": 0,
+    "agent": null
+  },
+  "websearch": {
+    "enabled": false,
+    "provider": "tavily",
+    "api_key": "tvly-your-tavily-api-key-here",
+    "search_depth": "basic",
+    "topic": "general",
+    "max_results": 5,
+    "chunks_per_source": 3,
+    "include_answer": false,
+    "include_raw_content": false,
+    "include_images": false,
+    "include_image_descriptions": false,
+    "include_favicon": false,
+    "include_domains": [],
+    "exclude_domains": [],
+    "auto_parameters": false
+  },
+  "webread": {
+    "enabled": false,
+    "provider": "tavily",
+    "api_key": "tvly-your-tavily-api-key-here",
+    "extract_depth": "basic",
+    "format": "markdown",
+    "include_images": false,
+    "include_favicon": false,
+    "chunks_per_source": 3,
+    "timeout": null
+  },
+  "channels": {
+    "enabled": false,
+    "telegram": {
+      "enabled": false,
+      "bot_token": "your-telegram-bot-token-here",
+      "allowed_user_ids": [
+        "123456789"
+      ]
+    },
+    "discord": {
+      "enabled": false,
+      "bot_token": "your-discord-bot-token-here",
+      "channel_id": "123456789012345678",
+      "allowed_user_ids": [
+        "123456789012345678"
+      ]
+    },
+    "feishu": {
+      "enabled": false,
+      "app_id": "cli_your-feishu-app-id-here",
+      "app_secret": "your-feishu-app-secret-here",
+      "verification_token": "your-feishu-event-verification-token-here",
+      "host": "127.0.0.1",
+      "port": 6950,
+      "path": "/feishu/events",
+      "domain": "https://open.feishu.cn",
+      "chat_id": null,
+      "allowed_chat_ids": [],
+      "allowed_user_ids": []
+    }
+  },
+  "websocket": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 6948,
+    "path": "/ws",
+    "auth_token": null
+  },
+  "routing": {
+    "bindings": []
+  }
+}

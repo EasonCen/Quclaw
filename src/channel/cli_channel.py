@@ -10,7 +10,7 @@ from rich.prompt import Prompt
 from rich.text import Text
 
 from channel.base import Channel
-from core.events import CliEventSource
+from runtime.events import CliEventSource
 
 
 class CliChannel(Channel[CliEventSource]):

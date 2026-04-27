@@ -6,13 +6,13 @@ from typing import TYPE_CHECKING, TypeVar
 
 from channel.base import Channel
 
-from .agent_worker import AgentWorker
-from .channel_worker import ChannelWorker
-from .cron_worker import CronWorker
-from .delivery_worker import DeliveryWorker
-from .heartbeat_worker import HeartbeatWorker
-from .websocket_worker import WebSocketWorker
-from .worker import Worker
+from .workers.agent import AgentWorker
+from .workers.channel import ChannelWorker
+from .workers.cron import CronWorker
+from .workers.delivery import DeliveryWorker
+from .workers.heartbeat import HeartbeatWorker
+from .workers.websocket import WebSocketWorker
+from .workers.base import Worker
 from utils.config import ConfigReloader
 
 if TYPE_CHECKING:

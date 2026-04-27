@@ -20,11 +20,15 @@ ENV/
 !.env.*.example
 
 # Workspace runtime state
+default_workspace/config.user.json
+default_workspace/config.runtime.json
 default_workspace/config.user.yaml
 default_workspace/config.runtime.yaml
 default_workspace/.event/
 default_workspace/.history/
 default_workspace/.logs/
+workspace/config.user.json
+workspace/config.runtime.json
 workspace/config.user.yaml
 workspace/config.runtime.yaml
 workspace/.event/
@@ -50,6 +54,7 @@ dist/
 .coverage
 .coverage.*
 .pytest_cache/
+pytest-cache-files-*/
 .mypy_cache/
 .ruff_cache/
 htmlcov/

@@ -14,7 +14,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from channel.base import Channel
-from core.events import EventSource
+from runtime.events import EventSource
 from utils.config import FeishuConfig
 
 logger = logging.getLogger(__name__)

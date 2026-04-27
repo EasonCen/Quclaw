@@ -7,8 +7,8 @@ import time
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from .worker import Worker
-from core.events import DispatchEvent, DispatchResultEvent, HeartbeatEventSource
+from .base import Worker
+from runtime.events import DispatchEvent, DispatchResultEvent, HeartbeatEventSource
 
 if TYPE_CHECKING:
     from core.context import SharedContext

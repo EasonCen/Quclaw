@@ -152,9 +152,10 @@ uv run python -m pytest -q tests
 src/
 ├── cli/       # Typer CLI 入口
 ├── channel/   # 平台渠道
-├── core/      # Agent、事件、配置、历史、Prompt、路由
+├── core/      # Agent、配置加载、历史、Prompt、路由
 ├── provider/  # LLM provider 适配
-├── server/    # 事件驱动 Worker
+├── runtime/   # 事件模型、EventBus、Worker 基类
+├── server/    # 服务编排和事件驱动 Worker
 ├── tools/     # 共享工具
 └── utils/     # 配置和定义加载工具
 ```

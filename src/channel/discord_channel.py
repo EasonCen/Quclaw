@@ -8,7 +8,7 @@ from typing import Awaitable, Callable
 import discord
 
 from channel.base import Channel
-from core.events import EventSource
+from runtime.events import EventSource
 from utils.config import DiscordConfig
 
 logger = logging.getLogger(__name__)

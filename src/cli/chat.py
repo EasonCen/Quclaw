@@ -8,11 +8,11 @@ from rich.console import Console
 
 from channel.cli_channel import CliChannel
 from core.context import SharedContext
-from core.events import CliEventSource
-from server.agent_worker import AgentWorker
-from server.channel_worker import ChannelWorker
-from server.delivery_worker import DeliveryWorker
-from server.worker import Worker
+from runtime.events import CliEventSource
+from server.workers.agent import AgentWorker
+from server.workers.channel import ChannelWorker
+from server.workers.delivery import DeliveryWorker
+from server.workers.base import Worker
 from utils.config import Config, ConfigReloader
 from utils.logging import setup_logging
 

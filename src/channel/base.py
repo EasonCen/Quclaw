@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Callable, Awaitable, Generic, TypeVar, Any
 
-from core.events import EventSource
+from runtime.events import EventSource
 from utils.config import Config
 
 
@@ -32,7 +32,7 @@ class Channel(ABC, Generic[T]):
     async def reply(self, content: str, source: T):
         """Reply to incoming message."""
         pass
-    
+
     @abstractmethod
     async def is_allowed(self, source: T) -> bool:
         """Check if sender is whitelisted."""
@@ -58,7 +58,7 @@ class Channel(ABC, Generic[T]):
         channel_config = config.channels
         if not channel_config.enabled:
             return []
-        
+
         if channel_config.telegram and channel_config.telegram.enabled:
             channels.append(TelegramChannel(channel_config.telegram))
 

@@ -36,16 +36,19 @@ satisfies the user's intent.
 
 ## Configuration
 
-Heartbeat is controlled by `{{workspace}}/config.user.yaml`:
+Heartbeat is controlled by `{{workspace}}/config.user.json`:
 
-```yaml
-heartbeat:
-  interval_minutes: 30
-  agent: null
+```json
+{
+  "heartbeat": {
+    "interval_minutes": 30,
+    "agent": null
+  }
+}
 ```
 
-- `interval_minutes: 0` disables Heartbeat.
-- `agent: null` uses `{{default_agent}}`.
+- `"interval_minutes": 0` disables Heartbeat.
+- `"agent": null` uses `{{default_agent}}`.
 - Use an explicit agent id only when the user asks for a specific agent.
 
 The periodic checklist lives at `{{workspace}}/HEARTBEAT.md`.
@@ -56,7 +59,7 @@ The periodic checklist lives at `{{workspace}}/HEARTBEAT.md`.
 2. If it is Heartbeat, choose a conservative interval. Prefer 30 minutes unless
    the user gives a different interval.
 3. Create or update `{{workspace}}/HEARTBEAT.md` with a concise checklist.
-4. Update `{{workspace}}/config.user.yaml` so `heartbeat.interval_minutes` is
+4. Update `{{workspace}}/config.user.json` so `heartbeat.interval_minutes` is
    greater than zero.
 
 Use the `read` tool first when updating existing files. Preserve unrelated
@@ -66,10 +69,13 @@ configuration and checklist content.
 
 Set:
 
-```yaml
-heartbeat:
-  interval_minutes: 0
-  agent: null
+```json
+{
+  "heartbeat": {
+    "interval_minutes": 0,
+    "agent": null
+  }
+}
 ```
 
 Do not delete `HEARTBEAT.md` unless the user explicitly asks to remove the

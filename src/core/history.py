@@ -9,7 +9,7 @@ from typing import Any, Literal, TYPE_CHECKING
 
 from pydantic import BaseModel, Field, field_validator
 
-from core.events import EventSource
+from runtime.events import EventSource
 from provider.llm.base import Message
 
 if TYPE_CHECKING:
@@ -51,8 +51,8 @@ class HistorySession(BaseModel):
             return self.get_source()
         except (ValueError, ImportError, TypeError, AttributeError):
             return None
-    
-    
+
+
 class HistoryMessage(BaseModel):
     """Single message - stored in session.jsonl."""
 

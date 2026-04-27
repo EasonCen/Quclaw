@@ -9,7 +9,7 @@ from telegram import Update
 from telegram.ext import Application, ContextTypes, MessageHandler, filters
 
 from channel.base import Channel
-from core.events import EventSource
+from runtime.events import EventSource
 from utils.config import TelegramConfig
 
 logger = logging.getLogger(__name__)

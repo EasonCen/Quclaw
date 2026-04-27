@@ -6,13 +6,13 @@ from core.cron_loader import CronLoader
 from core.history import HistoryStore
 from core.skill_loader import SkillLoader
 from core.prompt_builder import PromptBuilder
-from core.eventbus import EventBus
+from runtime.eventbus import EventBus
 from core.routing import RoutingTable
 from utils.config import Config
 from channel.base import Channel
 
 if TYPE_CHECKING:
-    from server.websocket_worker import WebSocketWorker
+    from server.workers.websocket import WebSocketWorker
 
 class SharedContext:
     """Global shared state for the application."""
@@ -27,7 +27,7 @@ class SharedContext:
     prompt_builder: PromptBuilder
     channels: list[Channel[Any]]
     eventbus: EventBus
-    websocket_worker: "WebSocketWorker | None" 
+    websocket_worker: "WebSocketWorker | None"
 
     def __init__(self,config: Config, channels: list[Channel[Any]] | None=None) -> None:
         self.config = config
@@ -38,7 +38,7 @@ class SharedContext:
         self.command_registry = CommandRegistry.with_builtins()
         self.routing_table = RoutingTable(self)
         self.prompt_builder = PromptBuilder(self)
-        
+
         if channels is not None:
             self.channels = channels
         else:

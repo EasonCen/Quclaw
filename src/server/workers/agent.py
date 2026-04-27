@@ -2,10 +2,10 @@
 import asyncio
 from typing import TYPE_CHECKING
 
-from .heartbeat_worker import is_heartbeat_ok
-from .worker import SubscriberWorker
+from .heartbeat import is_heartbeat_ok
+from .base import SubscriberWorker
 from core.agent import Agent, AgentSession
-from core.events import (
+from runtime.events import (
     DispatchEvent,
     DispatchResultEvent,
     InboundEvent,

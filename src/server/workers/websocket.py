@@ -11,8 +11,8 @@ from fastapi import WebSocket, status
 from fastapi.websockets import WebSocketDisconnect
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from .worker import Worker
-from core.events import (
+from .base import Worker
+from runtime.events import (
     Event,
     EventSource,
     InboundEvent,

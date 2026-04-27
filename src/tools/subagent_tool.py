@@ -6,7 +6,7 @@ import uuid
 import time
 from typing import TYPE_CHECKING
 
-from core.events import (
+from runtime.events import (
     AgentEventSource,
     DispatchEvent,
     DispatchResultEvent,

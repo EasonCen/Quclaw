@@ -5,12 +5,12 @@ import time
 
 from typing import TYPE_CHECKING, Any
 
-from .worker import Worker
-from core.events import EventSource, InboundEvent
+from .base import Worker
+from runtime.events import EventSource, InboundEvent
 
 if TYPE_CHECKING:
     from channel.base import Channel
-    from core.context import SharedContext    
+    from core.context import SharedContext
 
 
 class ChannelWorker(Worker):
@@ -129,7 +129,7 @@ class ChannelWorker(Worker):
         elif not expected_stop:
             self.logger.info("Channel %s stopped normally", platform)
 
-    
+
     def _create_callback(self, platform: str):
         """Create callback for a specific platform."""
 
@@ -142,7 +142,7 @@ class ChannelWorker(Worker):
                         f"Ignored non-whitelisted message from {platform}"
                     )
                     return
-                
+
                 if not source.is_platform:
                     self.logger.debug("Ignored non-platform message from %s", source)
                     return
@@ -152,7 +152,7 @@ class ChannelWorker(Worker):
                         source_str_value = str(source)
                         self.context.config.default_delivery_source = source_str_value
                         self.context.config.set_runtime(
-                            "default_delivery_source", 
+                            "default_delivery_source",
                             source_str_value,
                         )
 
@@ -180,5 +180,5 @@ class ChannelWorker(Worker):
         """Get or create session ID for a given source."""
         async with self._source_session_lock:
             return self.context.routing_table.get_or_create_session_id(source)
-        
+
 

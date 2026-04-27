@@ -13,8 +13,8 @@
 
 ```
 {{workspace}}
-├── config.user.yaml      # User configuration (created by onboarding)
-├── config.runtime.yaml   # Runtime state (optional, auto-managed)
+├── config.user.json      # User configuration (created by onboarding)
+├── config.runtime.json   # Runtime state (optional, auto-managed)
 ├── agents/               # Agent definitions
 │   └── {name}/
 │       ├── AGENT.md      # Agent config and instructions
@@ -48,8 +48,8 @@
 
 ### Configuration Files
 
-- **config.user.yaml** - User preferences, API keys, model selection
-- **config.runtime.yaml** - Internal runtime state (auto-managed)
+- **config.user.json** - User preferences, API keys, model selection
+- **config.runtime.json** - Internal runtime state (auto-managed)
 
 ### Capability Files
 

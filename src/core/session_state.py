@@ -9,7 +9,7 @@ from provider.llm.base import Message
 if TYPE_CHECKING:
     from core.agent import Agent
     from core.context import SharedContext
-    from core.events import EventSource
+    from runtime.events import EventSource
 
 @dataclass
 class SessionState:
@@ -52,5 +52,5 @@ class SessionState:
             return list(self.messages)
         messages: list[Message] = [{"role": "system", "content": system_prompt}]
         messages.extend(self.messages)
-        
+
         return messages

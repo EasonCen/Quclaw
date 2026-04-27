@@ -6,8 +6,8 @@ import random
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
-from .worker import SubscriberWorker
-from core.events import EventSource, OutboundEvent
+from .base import SubscriberWorker
+from runtime.events import EventSource, OutboundEvent
 
 if TYPE_CHECKING:
     from core.context import SharedContext

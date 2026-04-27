@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI, WebSocket
 
-from server.websocket_worker import WebSocketWorker
+from server.workers.websocket import WebSocketWorker
 
 
 def create_app(websocket_worker: WebSocketWorker) -> FastAPI:

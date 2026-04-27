@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from core.events import EventSource, OutboundEvent
+from runtime.events import EventSource, OutboundEvent
 from tools.base import BaseTool, tool
 
 if TYPE_CHECKING:

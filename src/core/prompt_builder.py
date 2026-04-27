@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.context import SharedContext
-    from core.events import EventSource
+    from runtime.events import EventSource
     from core.session_state import SessionState
 
 

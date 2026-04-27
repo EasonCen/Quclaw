@@ -10,7 +10,7 @@ from utils.config import SourceSessionConfig
 
 if TYPE_CHECKING:
     from core.context import SharedContext
-    from core.events import EventSource
+    from runtime.events import EventSource
 
 
 @dataclass
