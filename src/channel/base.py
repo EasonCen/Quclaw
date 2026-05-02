@@ -1,9 +1,10 @@
 """Abstract base class for channel implementations."""
 
 from abc import ABC, abstractmethod
-from typing import Callable, Awaitable, Generic, TypeVar, Any
+from typing import Callable, Awaitable, Generic, TypeVar, Any, Sequence
 
 from runtime.events import EventSource
+from runtime.media import MessageAttachment
 from utils.config import Config
 
 
@@ -29,7 +30,12 @@ class Channel(ABC, Generic[T]):
         """Run the channel. Block until stop() is called."""
 
     @abstractmethod
-    async def reply(self, content: str, source: T):
+    async def reply(
+        self,
+        content: str,
+        source: T,
+        attachments: Sequence[MessageAttachment] | None = None,
+    ) -> None:
         """Reply to incoming message."""
         pass
 

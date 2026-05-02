@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from .base import SubscriberWorker
 from runtime.events import EventSource, OutboundEvent
+from runtime.media import MessageAttachment
 
 if TYPE_CHECKING:
     from core.context import SharedContext
@@ -173,15 +174,29 @@ class DeliveryWorker(SubscriberWorker):
             return
 
         content = event.content
+        attachments = event.attachments
         if event.error:
             content = f"Agent processing failed: {event.error}"
+            attachments = []
 
         limit = PLATFORM_LIMITS.get(platform)
-        chunks = [content] if limit is None else chunk_message(content, limit)
+        if not content:
+            chunks = []
+        elif limit is None:
+            chunks = [content]
+        else:
+            chunks = chunk_message(content, limit)
 
         try:
             for chunk in chunks:
                 await self._deliver_with_retry(channel, chunk, source)
+            if attachments:
+                await self._deliver_with_retry(
+                    channel,
+                    "",
+                    source,
+                    attachments=attachments,
+                )
             self.logger.debug("Delivered outbound event to %s", source)
             self._cancel_pending_retry(event)
             self.context.eventbus.ack(event)
@@ -380,11 +395,12 @@ class DeliveryWorker(SubscriberWorker):
         channel: "Channel",
         content: str,
         source: EventSource,
+        attachments: list[MessageAttachment] | None = None,
     ) -> None:
         """Deliver content with bounded retries and backoff."""
         for attempt in range(1, MAX_RETRY + 1):
             try:
-                await channel.reply(content, source)
+                await channel.reply(content, source, attachments=attachments)
                 return
             except asyncio.CancelledError:
                 raise
@@ -404,4 +420,3 @@ class DeliveryWorker(SubscriberWorker):
                 )
                 if delay_ms > 0:
                     await asyncio.sleep(delay_ms / 1000)
-

@@ -1,0 +1,251 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1480" height="1040" viewBox="0 0 1480 1040" role="img" aria-labelledby="title desc">
+  <title id="title">Telegram 多 Bot 单账号演示流程图</title>
+  <desc id="desc">展示用一个 Telegram 用户分别打开员工、HR、TL 和运维 Bot，通过 Quclaw 多 Bot 订阅模拟完整试用期主动离职场景。</desc>
+  <defs>
+    <marker id="arrow-blue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#2563eb"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#ea580c"/>
+    </marker>
+    <marker id="arrow-gray" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#64748b"/>
+    </marker>
+    <marker id="arrow-red" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#dc2626"/>
+    </marker>
+    <filter id="soft-shadow" x="-12%" y="-20%" width="124%" height="150%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.10"/>
+    </filter>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { font: 700 32px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 400 16px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #475569; }
+      .section-title { font: 700 20px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #0f172a; }
+      .node-title { font: 700 17px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #0f172a; }
+      .node-text { font: 400 14px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #334155; }
+      .small { font: 400 12px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #475569; }
+      .tag { font: 700 12px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; }
+      .panel { fill: #ffffff; stroke: #dbe3ee; stroke-width: 1.5; }
+      .bot { fill: #dbeafe; stroke: #2563eb; stroke-width: 2; }
+      .user { fill: #ffedd5; stroke: #ea580c; stroke-width: 2; }
+      .core { fill: #e0f2fe; stroke: #0284c7; stroke-width: 2; }
+      .agent { fill: #eef2ff; stroke: #4f46e5; stroke-width: 2; }
+      .store { fill: #f1f5f9; stroke: #64748b; stroke-width: 2; }
+      .warn { fill: #fee2e2; stroke: #dc2626; stroke-width: 2; }
+      .ok { fill: #dcfce7; stroke: #16a34a; stroke-width: 2; }
+      .arrow-blue { fill: none; stroke: #2563eb; stroke-width: 2.4; marker-end: url(#arrow-blue); }
+      .arrow-orange { fill: none; stroke: #ea580c; stroke-width: 2.3; marker-end: url(#arrow-orange); }
+      .arrow-gray { fill: none; stroke: #64748b; stroke-width: 2.2; marker-end: url(#arrow-gray); }
+      .arrow-red { fill: none; stroke: #dc2626; stroke-width: 2.2; marker-end: url(#arrow-red); stroke-dasharray: 8 7; }
+      .arrow-blue-dash { fill: none; stroke: #2563eb; stroke-width: 2.2; marker-end: url(#arrow-blue); stroke-dasharray: 8 7; }
+      .divider { stroke: #e2e8f0; stroke-width: 1; }
+      .icon { font: 700 24px Arial, sans-serif; fill: #2563eb; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1480" height="1040"/>
+
+  <text class="title" x="58" y="58">Telegram 多 Bot 单账号演示：试用期主动离职场景</text>
+  <text class="subtitle" x="58" y="88">一个 Telegram 用户分别打开 employee_bot、hr_bot、tl_bot、ops_bot；Quclaw 后台订阅多个 Bot token，用不同 Bot 模拟不同职责窗口。</text>
+
+  <!-- Panels -->
+  <g transform="translate(58,118)">
+    <rect class="panel" x="0" y="0" width="420" height="782" rx="14"/>
+    <rect class="panel" x="500" y="0" width="862" height="782" rx="14"/>
+    <rect class="panel" x="0" y="814" width="1362" height="70" rx="14"/>
+
+    <text class="section-title" x="28" y="40">Telegram 演示侧</text>
+    <text class="small" x="28" y="64">同一个真人账号，分别和 4 个 Bot 私聊。</text>
+
+    <text class="section-title" x="528" y="40">Quclaw 后台侧</text>
+    <text class="small" x="528" y="64">多 Bot Channel 接入，事件源携带 bot_id + user_id，Scenario/Coordinator 决定发给哪个角色窗口。</text>
+
+    <!-- Same user -->
+    <g filter="url(#soft-shadow)">
+      <rect class="user" x="78" y="98" width="264" height="78" rx="12"/>
+      <text class="node-title" x="112" y="128">同一个 Telegram 用户</text>
+      <text class="node-text" x="112" y="152">先分别对 4 个 Bot /start</text>
+      <text class="tag" x="112" y="170" fill="#c2410c">demo 操作者</text>
+    </g>
+
+    <!-- Bot windows -->
+    <g filter="url(#soft-shadow)">
+      <rect class="bot" x="60" y="230" width="300" height="76" rx="12"/>
+      <text class="node-title" x="88" y="260">employee_bot</text>
+      <text class="node-text" x="88" y="282">员工窗口：提出离职、补信息</text>
+    </g>
+    <g filter="url(#soft-shadow)">
+      <rect class="bot" x="60" y="336" width="300" height="76" rx="12"/>
+      <text class="node-title" x="88" y="366">hr_bot</text>
+      <text class="node-text" x="88" y="388">HR 窗口：确认申请、最终结案</text>
+    </g>
+    <g filter="url(#soft-shadow)">
+      <rect class="bot" x="60" y="442" width="300" height="76" rx="12"/>
+      <text class="node-title" x="88" y="472">tl_bot</text>
+      <text class="node-text" x="88" y="494">TL/PT 窗口：补充交接信息</text>
+    </g>
+    <g filter="url(#soft-shadow)">
+      <rect class="bot" x="60" y="548" width="300" height="76" rx="12"/>
+      <text class="node-title" x="88" y="578">ops_bot</text>
+      <text class="node-text" x="88" y="600">运维窗口：权限/资产回收</text>
+    </g>
+
+    <g filter="url(#soft-shadow)">
+      <rect class="warn" x="60" y="678" width="300" height="70" rx="12"/>
+      <text class="node-title" x="88" y="708">注意</text>
+      <text class="node-text" x="88" y="731">Bot 之间不互聊，后台代发消息</text>
+    </g>
+
+    <!-- Backend: channel config -->
+    <g filter="url(#soft-shadow)">
+      <rect class="core" x="548" y="100" width="260" height="110" rx="12"/>
+      <text class="node-title" x="576" y="132">TelegramMultiBotChannel</text>
+      <text class="node-text" x="576" y="156">订阅多个 bot token</text>
+      <text class="node-text" x="576" y="180">employee / hr / tl / ops</text>
+      <text class="tag" x="576" y="202" fill="#0369a1">渠道接入</text>
+    </g>
+
+    <g filter="url(#soft-shadow)">
+      <rect class="store" x="880" y="100" width="280" height="110" rx="12"/>
+      <text class="node-title" x="908" y="132">角色映射</text>
+      <text class="node-text" x="908" y="156">bot_id → role</text>
+      <text class="node-text" x="908" y="180">user_id 白名单 / 权限校验</text>
+      <text class="tag" x="908" y="202" fill="#475569">配置驱动</text>
+    </g>
+
+    <g filter="url(#soft-shadow)">
+      <rect class="store" x="560" y="260" width="320" height="118" rx="12"/>
+      <text class="node-title" x="588" y="292">事件源格式</text>
+      <text class="node-text" x="588" y="316">platform-telegram:employee/&lt;user_id&gt;</text>
+      <text class="node-text" x="588" y="340">platform-telegram:hr/&lt;user_id&gt;</text>
+      <text class="node-text" x="588" y="364">每个角色形成独立窗口</text>
+    </g>
+
+    <!-- Scenario flow -->
+    <g filter="url(#soft-shadow)">
+      <rect class="agent" x="548" y="438" width="210" height="86" rx="12"/>
+      <text class="node-title" x="576" y="470">Scene Router</text>
+      <text class="node-text" x="576" y="494">识别主动离职场景</text>
+      <text class="tag" x="576" y="514" fill="#4338ca">AI 识别</text>
+    </g>
+
+    <g filter="url(#soft-shadow)">
+      <rect class="agent" x="808" y="438" width="218" height="86" rx="12"/>
+      <text class="node-title" x="836" y="470">Coordinator</text>
+      <text class="node-text" x="836" y="494">创建 Case / 推进步骤</text>
+      <text class="tag" x="836" y="514" fill="#4338ca">AI 编排</text>
+    </g>
+
+    <g filter="url(#soft-shadow)">
+      <rect class="store" x="1080" y="422" width="220" height="118" rx="12"/>
+      <text class="node-title" x="1108" y="454">Case 状态库</text>
+      <text class="node-text" x="1108" y="478">步骤、任务、角色窗口</text>
+      <text class="node-text" x="1108" y="502">超时、审计、关闭条件</text>
+      <text class="tag" x="1108" y="524" fill="#475569">持久化</text>
+    </g>
+
+    <g filter="url(#soft-shadow)">
+      <rect class="core" x="548" y="600" width="240" height="92" rx="12"/>
+      <text class="node-title" x="576" y="632">scenario_notify</text>
+      <text class="node-text" x="576" y="656">按 role 选择 Bot 回发</text>
+      <text class="tag" x="576" y="676" fill="#0369a1">定向投递</text>
+    </g>
+
+    <g filter="url(#soft-shadow)">
+      <rect class="ok" x="842" y="600" width="230" height="92" rx="12"/>
+      <text class="node-title" x="870" y="632">真人任务完成</text>
+      <text class="node-text" x="870" y="656">HR / TL / 运维回复确认</text>
+      <text class="tag" x="870" y="676" fill="#15803d">关键节点</text>
+    </g>
+
+    <g filter="url(#soft-shadow)">
+      <rect class="warn" x="1130" y="600" width="170" height="92" rx="12"/>
+      <text class="node-title" x="1158" y="632">超时提醒</text>
+      <text class="node-text" x="1158" y="656">未完成则升级 HR</text>
+      <text class="tag" x="1158" y="676" fill="#b91c1c">异常处理</text>
+    </g>
+
+    <!-- Bot to backend arrows -->
+    <path class="arrow-orange" d="M210,176 L210,230"/>
+    <path class="arrow-orange" d="M210,176 C150,218 150,318 210,336"/>
+    <path class="arrow-orange" d="M210,176 C130,250 130,424 210,442"/>
+    <path class="arrow-orange" d="M210,176 C112,285 112,532 210,548"/>
+
+    <path class="arrow-blue" d="M360,268 C440,268 468,150 548,150"/>
+    <path class="arrow-blue" d="M360,374 C450,374 468,164 548,164"/>
+    <path class="arrow-blue" d="M360,480 C460,480 468,178 548,178"/>
+    <path class="arrow-blue" d="M360,586 C470,586 470,194 548,194"/>
+
+    <path class="arrow-gray" d="M808,155 L880,155"/>
+    <path class="arrow-gray" d="M678,210 C678,230 692,242 720,260"/>
+    <path class="arrow-gray" d="M1020,210 C994,254 940,276 880,300"/>
+
+    <!-- Scenario arrows -->
+    <path class="arrow-blue" d="M720,378 C700,398 672,416 653,438"/>
+    <path class="arrow-blue" d="M758,481 L808,481"/>
+    <path class="arrow-gray" d="M1026,481 L1080,481"/>
+    <path class="arrow-blue" d="M1190,540 C1115,582 920,592 788,632"/>
+    <path class="arrow-blue" d="M788,646 L842,646"/>
+    <path class="arrow-gray" d="M1072,646 L1130,646"/>
+    <path class="arrow-red" d="M1215,600 C1215,560 1210,542 1190,540"/>
+
+    <!-- Backend to bots arrows -->
+    <path class="arrow-blue-dash" d="M548,626 C430,626 418,374 360,374"/>
+    <path class="arrow-blue-dash" d="M548,646 C426,646 420,480 360,480"/>
+    <path class="arrow-blue-dash" d="M548,666 C426,666 420,586 360,586"/>
+    <path class="arrow-blue-dash" d="M548,606 C418,604 410,268 360,268"/>
+
+    <!-- Step labels on demo side -->
+    <g>
+      <rect x="20" y="212" width="30" height="30" rx="15" fill="#2563eb"/>
+      <text x="31" y="233" font="700 16px Arial" fill="#ffffff">1</text>
+      <text class="small" x="56" y="218">员工发起：</text>
+      <text class="small" x="56" y="238">我试用期想主动离职</text>
+    </g>
+    <g>
+      <rect x="20" y="320" width="30" height="30" rx="15" fill="#2563eb"/>
+      <text x="31" y="341" font="700 16px Arial" fill="#ffffff">2</text>
+      <text class="small" x="56" y="326">HR 回复：</text>
+      <text class="small" x="56" y="346">确认申请通过</text>
+    </g>
+    <g>
+      <rect x="20" y="426" width="30" height="30" rx="15" fill="#2563eb"/>
+      <text x="31" y="447" font="700 16px Arial" fill="#ffffff">3</text>
+      <text class="small" x="56" y="432">TL 回复：</text>
+      <text class="small" x="56" y="452">交接事项和接收人</text>
+    </g>
+    <g>
+      <rect x="20" y="532" width="30" height="30" rx="15" fill="#2563eb"/>
+      <text x="31" y="553" font="700 16px Arial" fill="#ffffff">4</text>
+      <text class="small" x="56" y="538">运维回复：</text>
+      <text class="small" x="56" y="558">权限和资产已回收</text>
+    </g>
+    <g>
+      <rect x="20" y="638" width="30" height="30" rx="15" fill="#2563eb"/>
+      <text x="31" y="659" font="700 16px Arial" fill="#ffffff">5</text>
+      <text class="small" x="56" y="644">HR 回复：</text>
+      <text class="small" x="56" y="664">确认结案</text>
+    </g>
+
+    <!-- Bottom notes -->
+    <g transform="translate(24,831)">
+      <text class="small" x="0" y="0" font-weight="700">演示价值：</text>
+      <text class="small" x="74" y="0">不用准备多个真人账号；每个 Bot 就是一个角色窗口，窗口隔离清楚，录屏顺序稳定。</text>
+      <text class="small" x="0" y="26" font-weight="700">正式环境：</text>
+      <text class="small" x="74" y="26">不能只靠 Bot 身份认定角色，还要校验 Telegram user_id / chat_id 与组织角色绑定。</text>
+    </g>
+
+    <!-- Legend -->
+    <g transform="translate(816,824)">
+      <rect class="bot" x="0" y="0" width="22" height="16" rx="4"/>
+      <text class="small" x="30" y="13">Telegram Bot 窗口</text>
+      <rect class="agent" x="170" y="0" width="22" height="16" rx="4"/>
+      <text class="small" x="200" y="13">Agent 编排</text>
+      <rect class="store" x="316" y="0" width="22" height="16" rx="4"/>
+      <text class="small" x="346" y="13">状态/配置</text>
+      <rect class="warn" x="456" y="0" width="22" height="16" rx="4"/>
+      <text class="small" x="486" y="13">异常</text>
+    </g>
+  </g>
+</svg>

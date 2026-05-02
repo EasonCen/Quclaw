@@ -2,7 +2,7 @@
 
 import asyncio
 
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Sequence
 
 from rich.console import Console
 from rich.panel import Panel
@@ -11,6 +11,7 @@ from rich.text import Text
 
 from channel.base import Channel
 from runtime.events import CliEventSource
+from runtime.media import MessageAttachment
 
 
 class CliChannel(Channel[CliEventSource]):
@@ -70,14 +71,27 @@ class CliChannel(Channel[CliEventSource]):
             if self._closed_event is not None:
                 self._closed_event.set()
 
-    async def reply(self, content: str, source: CliEventSource) -> None:
+    async def reply(
+        self,
+        content: str,
+        source: CliEventSource,
+        attachments: Sequence[MessageAttachment] | None = None,
+    ) -> None:
         """Print an agent reply to the terminal."""
         if str(source) != str(self.source):
             return
 
         prefix = Text(f"{self.agent_label}: ", style="green")
-        self.console.print(prefix, end="")
-        self.console.print(content)
+        if content:
+            self.console.print(prefix, end="")
+            self.console.print(content)
+
+        for attachment in attachments or ():
+            self.console.print(prefix, end="")
+            self.console.print(
+                f"[attachment:{attachment.kind}] {attachment.display_name} -> "
+                f"{attachment.path}"
+            )
 
         if self._reply_event is not None:
             self._reply_event.set()
