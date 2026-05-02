@@ -157,6 +157,26 @@ class ContextConfig(BaseModel):
     token_threshold: int = Field(default=200000, gt=0)
 
 
+class MediaConfig(BaseModel):
+    """Outbound media loading policy."""
+
+    local_roots: list[Path] = Field(default_factory=list)
+    max_size_mb: int = Field(default=30, ge=1)
+
+    @field_validator("local_roots", mode="before")
+    @classmethod
+    def local_roots_must_be_list(cls, value: Any) -> list[Any]:
+        if value is None:
+            return []
+        if isinstance(value, str | Path):
+            return [value]
+        return value
+
+    @property
+    def max_size_bytes(self) -> int:
+        return self.max_size_mb * 1024 * 1024
+
+
 class ChannelConfig(BaseModel):
     """Channel configuration/"""
 
@@ -206,6 +226,7 @@ class Config(BaseModel):
     event_path: Path = Field(default=Path(".event"))
     history_path: Path = Field(default=Path(".history"))
     context: ContextConfig = Field(default_factory=ContextConfig)
+    media: MediaConfig = Field(default_factory=MediaConfig)
     channels: ChannelConfig = Field(default_factory=ChannelConfig)
     websocket: WebSocketConfig = Field(default_factory=WebSocketConfig)
     heartbeat: HeartbeatConfig = Field(default_factory=HeartbeatConfig)
@@ -229,6 +250,11 @@ class Config(BaseModel):
             path = getattr(self, field_name)
             if not path.is_absolute():
                 setattr(self, field_name, self.workspace / path)
+
+        self.media.local_roots = [
+            path if path.is_absolute() else self.workspace / path
+            for path in self.media.local_roots
+        ]
         return self
 
     def template_vars(self) -> dict[str, str]:

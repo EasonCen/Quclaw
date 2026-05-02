@@ -3,12 +3,14 @@
 import asyncio
 from dataclasses import dataclass
 import logging
-from typing import Awaitable, Callable
+from pathlib import Path
+from typing import Awaitable, Callable, Sequence
 
 import discord
 
 from channel.base import Channel
 from runtime.events import EventSource
+from runtime.media import MessageAttachment
 from utils.config import DiscordConfig
 
 logger = logging.getLogger(__name__)
@@ -71,7 +73,12 @@ class DiscordChannel(Channel[DiscordEventSource]):
         logger.info("Starting Discord channel")
         await self._client.start(self.config.bot_token)
 
-    async def reply(self, content: str, source: DiscordEventSource) -> None:
+    async def reply(
+        self,
+        content: str,
+        source: DiscordEventSource,
+        attachments: Sequence[MessageAttachment] | None = None,
+    ) -> None:
         """Send a reply to the Discord channel represented by source."""
         channel = self._client.get_channel(int(source.channel_id))
         if channel is None:
@@ -81,8 +88,15 @@ class DiscordChannel(Channel[DiscordEventSource]):
         if send is None:
             raise RuntimeError(f"Discord channel {source.channel_id} cannot receive messages")
 
-        for chunk in self._split_message(content):
+        for chunk in self._split_message(content) if content else []:
             await send(chunk)
+
+        for attachment in attachments or ():
+            path = Path(attachment.path)
+            with path.open("rb") as f:
+                await send(
+                    file=discord.File(f, filename=attachment.display_name),
+                )
 
     async def is_allowed(self, source: DiscordEventSource) -> bool:
         """Check whether a Discord sender is allowed to use the bot."""

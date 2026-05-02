@@ -8,10 +8,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
+from runtime.media import MessageAttachment
 
 _EVENT_SOURCE_MODULES: dict[str, str] = {
     "platform-telegram": "channel.telegram_channel",
     "platform-discord": "channel.discord_channel",
+    "platform-feishu": "channel.feishu_channel",
 }
 
 
@@ -175,6 +177,16 @@ class WebSocketEventSource(EventSource):
         return "ws"
 
 
+def _serialize_event_value(value: Any) -> Any:
+    if isinstance(value, EventSource):
+        return str(value)
+    if isinstance(value, MessageAttachment):
+        return value.to_dict()
+    if isinstance(value, list):
+        return [_serialize_event_value(item) for item in value]
+    return value
+
+
 @dataclass
 class Event:
     """Base class for all typed events."""
@@ -190,10 +202,7 @@ class Event:
         result: dict[str, Any] = {"type": self.__class__.__name__}
         for field_name in self.__dataclass_fields__:
             value = getattr(self, field_name)
-            if field_name == "source" and isinstance(value, EventSource):
-                result[field_name] = str(value)
-            else:
-                result[field_name] = value
+            result[field_name] = _serialize_event_value(value)
 
         return result
 
@@ -207,6 +216,12 @@ class Event:
             elif k in cls.__dataclass_fields__:
                 if k == "source" and isinstance(v, str):
                     kwargs[k] = EventSource.from_string(v)
+                elif k == "attachments" and isinstance(v, list):
+                    kwargs[k] = [
+                        MessageAttachment.from_dict(item)
+                        for item in v
+                        if isinstance(item, dict)
+                    ]
                 else:
                     kwargs[k] = v
 
@@ -227,6 +242,7 @@ class OutboundEvent(Event):
 
     retry_count: int = 0
     error: str | None = None
+    attachments: list[MessageAttachment] = field(default_factory=list)
 
 @dataclass
 class DispatchEvent(Event):
@@ -268,6 +284,3 @@ def deserialize_event(data: dict[str, Any]) -> Event:
         raise ValueError(f"Unknown event type: {event_type}")
 
     return event_class.from_dict(data)
-
-
-

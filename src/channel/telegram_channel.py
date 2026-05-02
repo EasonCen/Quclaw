@@ -3,13 +3,15 @@
 import asyncio
 from dataclasses import dataclass
 import logging
-from typing import Awaitable, Callable
+from pathlib import Path
+from typing import Awaitable, Callable, Sequence
 
 from telegram import Update
 from telegram.ext import Application, ContextTypes, MessageHandler, filters
 
 from channel.base import Channel
 from runtime.events import EventSource
+from runtime.media import MessageAttachment
 from utils.config import TelegramConfig
 
 logger = logging.getLogger(__name__)
@@ -82,7 +84,12 @@ class TelegramChannel(Channel[TelegramEventSource]):
         finally:
             await self._shutdown()
 
-    async def reply(self, content: str, source: TelegramEventSource) -> None:
+    async def reply(
+        self,
+        content: str,
+        source: TelegramEventSource,
+        attachments: Sequence[MessageAttachment] | None = None,
+    ) -> None:
         """Send a reply to the Telegram chat represented by source."""
         if self._application is None:
             raise RuntimeError("Telegram channel is not running")
@@ -91,12 +98,49 @@ class TelegramChannel(Channel[TelegramEventSource]):
         if source.thread_id is not None:
             kwargs["message_thread_id"] = source.thread_id
 
-        for chunk in self._split_message(content):
+        for chunk in self._split_message(content) if content else []:
             await self._application.bot.send_message(
                 chat_id=source.chat_id,
                 text=chunk,
                 **kwargs,
             )
+
+        for attachment in attachments or ():
+            await self._send_attachment(attachment, source, kwargs)
+
+    async def _send_attachment(
+        self,
+        attachment: MessageAttachment,
+        source: TelegramEventSource,
+        kwargs: dict,
+    ) -> None:
+        if self._application is None:
+            raise RuntimeError("Telegram channel is not running")
+
+        path = Path(attachment.path)
+        with path.open("rb") as f:
+            if attachment.kind == "image":
+                await self._application.bot.send_photo(
+                    chat_id=source.chat_id,
+                    photo=f,
+                    filename=attachment.display_name,
+                    **kwargs,
+                )
+            elif attachment.kind == "video":
+                await self._application.bot.send_video(
+                    chat_id=source.chat_id,
+                    video=f,
+                    filename=attachment.display_name,
+                    supports_streaming=True,
+                    **kwargs,
+                )
+            else:
+                await self._application.bot.send_document(
+                    chat_id=source.chat_id,
+                    document=f,
+                    filename=attachment.display_name,
+                    **kwargs,
+                )
 
     async def is_allowed(self, source: TelegramEventSource) -> bool:
         """Check whether a Telegram sender is allowed to use the bot."""

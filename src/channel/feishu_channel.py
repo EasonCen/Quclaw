@@ -6,7 +6,8 @@ import logging
 import re
 import time
 from dataclasses import dataclass
-from typing import Awaitable, Callable
+from pathlib import Path
+from typing import Awaitable, Callable, Sequence
 
 import httpx
 import uvicorn
@@ -15,6 +16,7 @@ from fastapi.responses import JSONResponse
 
 from channel.base import Channel
 from runtime.events import EventSource
+from runtime.media import MessageAttachment
 from utils.config import FeishuConfig
 
 logger = logging.getLogger(__name__)
@@ -109,27 +111,27 @@ class FeishuChannel(Channel[FeishuEventSource]):
             await asyncio.gather(stop_task, return_exceptions=True)
             await self._shutdown_server(server_task)
 
-    async def reply(self, content: str, source: FeishuEventSource) -> None:
-        """Send a text message to the Feishu chat represented by source."""
+    async def reply(
+        self,
+        content: str,
+        source: FeishuEventSource,
+        attachments: Sequence[MessageAttachment] | None = None,
+    ) -> None:
+        """Send a message to the Feishu chat represented by source."""
         if self._http is None:
             raise RuntimeError("Feishu channel is not running")
 
-        for chunk in self._split_message(content):
+        for chunk in self._split_message(content) if content else []:
             token = await self._get_tenant_access_token()
-            response = await self._http.post(
-                "/open-apis/im/v1/messages",
-                params={"receive_id_type": "chat_id"},
-                headers={"Authorization": f"Bearer {token}"},
-                json={
-                    "receive_id": source.chat_id,
-                    "msg_type": "text",
-                    "content": json.dumps(
-                        {"text": chunk},
-                        ensure_ascii=False,
-                    ),
-                },
+            await self._send_message_payload(
+                source.chat_id,
+                "text",
+                {"text": chunk},
+                token,
             )
-            self._raise_for_feishu_response(response, "send Feishu message")
+
+        for attachment in attachments or ():
+            await self._send_attachment(attachment, source)
 
     async def is_allowed(self, source: FeishuEventSource) -> bool:
         """Check whether a Feishu sender is allowed to use the bot."""
@@ -337,6 +339,124 @@ class FeishuChannel(Channel[FeishuEventSource]):
         self._tenant_access_token = token
         self._tenant_access_token_expires_at = now + max(60, ttl_seconds - 60)
         return token
+
+    async def _send_attachment(
+        self,
+        attachment: MessageAttachment,
+        source: FeishuEventSource,
+    ) -> None:
+        token = await self._get_tenant_access_token()
+        if attachment.kind == "image":
+            image_key = await self._upload_image(attachment, token)
+            await self._send_message_payload(
+                source.chat_id,
+                "image",
+                {"image_key": image_key},
+                token,
+            )
+            return
+
+        file_key = await self._upload_file(attachment, token)
+        await self._send_message_payload(
+            source.chat_id,
+            "file",
+            {"file_key": file_key},
+            token,
+        )
+
+    async def _send_message_payload(
+        self,
+        chat_id: str,
+        msg_type: str,
+        content: dict[str, str],
+        token: str,
+    ) -> None:
+        if self._http is None:
+            raise RuntimeError("Feishu channel is not running")
+
+        response = await self._http.post(
+            "/open-apis/im/v1/messages",
+            params={"receive_id_type": "chat_id"},
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "receive_id": chat_id,
+                "msg_type": msg_type,
+                "content": json.dumps(content, ensure_ascii=False),
+            },
+        )
+        self._raise_for_feishu_response(response, "send Feishu message")
+
+    async def _upload_image(
+        self,
+        attachment: MessageAttachment,
+        token: str,
+    ) -> str:
+        if self._http is None:
+            raise RuntimeError("Feishu channel is not running")
+
+        path = Path(attachment.path)
+        media_type = attachment.media_type or "application/octet-stream"
+        with path.open("rb") as f:
+            response = await self._http.post(
+                "/open-apis/im/v1/images",
+                headers={"Authorization": f"Bearer {token}"},
+                data={"image_type": "message"},
+                files={"image": (attachment.display_name, f, media_type)},
+            )
+
+        data = self._raise_for_feishu_response(response, "upload Feishu image")
+        payload = data.get("data")
+        image_key = payload.get("image_key") if isinstance(payload, dict) else None
+        if not isinstance(image_key, str) or not image_key:
+            raise RuntimeError("Feishu image upload response missing image_key")
+        return image_key
+
+    async def _upload_file(
+        self,
+        attachment: MessageAttachment,
+        token: str,
+    ) -> str:
+        if self._http is None:
+            raise RuntimeError("Feishu channel is not running")
+
+        path = Path(attachment.path)
+        media_type = attachment.media_type or "application/octet-stream"
+        with path.open("rb") as f:
+            response = await self._http.post(
+                "/open-apis/im/v1/files",
+                headers={"Authorization": f"Bearer {token}"},
+                data={
+                    "file_type": self._file_type_for_feishu(attachment),
+                    "file_name": attachment.display_name,
+                },
+                files={"file": (attachment.display_name, f, media_type)},
+            )
+
+        data = self._raise_for_feishu_response(response, "upload Feishu file")
+        payload = data.get("data")
+        file_key = payload.get("file_key") if isinstance(payload, dict) else None
+        if not isinstance(file_key, str) or not file_key:
+            raise RuntimeError("Feishu file upload response missing file_key")
+        return file_key
+
+    @staticmethod
+    def _file_type_for_feishu(attachment: MessageAttachment) -> str:
+        suffix = Path(attachment.display_name).suffix.lower()
+        if suffix == ".pdf":
+            return "pdf"
+        if suffix in {".doc", ".docx"}:
+            return "doc"
+        if suffix in {".xls", ".xlsx"}:
+            return "xls"
+        if suffix in {".ppt", ".pptx"}:
+            return "ppt"
+        if suffix in {".txt", ".md", ".csv", ".json"}:
+            return "txt"
+        if suffix in {".mp4", ".mov", ".m4v"}:
+            return "mp4"
+        if suffix in {".mp3", ".wav", ".m4a", ".ogg"}:
+            return "opus"
+        return "stream"
 
     @staticmethod
     def _raise_for_feishu_response(response: httpx.Response, action: str) -> dict:
