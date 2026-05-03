@@ -6,6 +6,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from .base import Worker
+from channel.base import ChannelMessage
 from runtime.events import EventSource, InboundEvent
 
 if TYPE_CHECKING:
@@ -133,9 +134,10 @@ class ChannelWorker(Worker):
     def _create_callback(self, platform: str):
         """Create callback for a specific platform."""
 
-        async def callback(message: str, source: EventSource) -> None:
+        async def callback(channel_message: ChannelMessage[EventSource]) -> None:
             try:
                 channel = self.channel_map[platform]
+                source = channel_message.source
 
                 if not await channel.is_allowed(source):
                     self.logger.debug(
@@ -162,8 +164,9 @@ class ChannelWorker(Worker):
                 event = InboundEvent(
                     session_id = session_id,
                     source=source,
-                    content=message,
+                    content=channel_message.content,
                     timestamp=time.time(),
+                    attachments=channel_message.attachments,
                 )
                 await self.context.eventbus.publish(event)
                 self.logger.debug(f"Published INBOUND event from {source}")
@@ -180,5 +183,4 @@ class ChannelWorker(Worker):
         """Get or create session ID for a given source."""
         async with self._source_session_lock:
             return self.context.routing_table.get_or_create_session_id(source)
-
 

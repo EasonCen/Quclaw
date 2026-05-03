@@ -6,12 +6,12 @@ import logging
 from pathlib import Path
 from typing import Awaitable, Callable, Sequence
 
-from telegram import Update
+from telegram import Message, Update
 from telegram.ext import Application, ContextTypes, MessageHandler, filters
 
-from channel.base import Channel
+from channel.base import Channel, ChannelMessage
 from runtime.events import EventSource
-from runtime.media import MessageAttachment
+from runtime.media import MediaLoadError, MediaStore, MessageAttachment
 from utils.config import TelegramConfig
 
 logger = logging.getLogger(__name__)
@@ -49,10 +49,18 @@ class TelegramEventSource(EventSource):
 class TelegramChannel(Channel[TelegramEventSource]):
     """Telegram platform implementation using python-telegram-bot."""
 
-    def __init__(self, config: TelegramConfig):
+    def __init__(
+        self,
+        config: TelegramConfig,
+        media_store: MediaStore,
+    ):
         self.config = config
+        self.media_store = media_store
         self._application: Application | None = None
-        self._on_message: Callable[[str, TelegramEventSource], Awaitable[None]] | None = None
+        self._on_message: Callable[
+            [ChannelMessage[TelegramEventSource]],
+            Awaitable[None],
+        ] | None = None
         self._stop_event: asyncio.Event | None = None
         self._shutdown_lock = asyncio.Lock()
 
@@ -62,13 +70,15 @@ class TelegramChannel(Channel[TelegramEventSource]):
 
     async def run(
         self,
-        on_message: Callable[[str, TelegramEventSource], Awaitable[None]],
+        on_message: Callable[[ChannelMessage[TelegramEventSource]], Awaitable[None]],
     ) -> None:
         """Run the Telegram long-polling loop until stop() is called."""
         self._on_message = on_message
         self._stop_event = asyncio.Event()
         self._application = Application.builder().token(self.config.bot_token).build()
-        self._application.add_handler(MessageHandler(filters.TEXT, self._handle_text_message))
+        self._application.add_handler(
+            MessageHandler(self._message_filter(), self._handle_message)
+        )
 
         await self._application.initialize()
         await self._application.start()
@@ -160,22 +170,18 @@ class TelegramChannel(Channel[TelegramEventSource]):
         else:
             await self._shutdown()
 
-    async def _handle_text_message(
+    async def _handle_message(
         self,
         update: Update,
         context: ContextTypes.DEFAULT_TYPE,
     ) -> None:
-        """Convert Telegram text messages into channel messages."""
+        """Convert Telegram messages into channel messages."""
         del context
 
         message = update.effective_message
         chat = update.effective_chat
         user = update.effective_user
-        if message is None or chat is None or message.text is None:
-            return
-
-        content = message.text.strip()
-        if not content:
+        if message is None or chat is None:
             return
 
         source = TelegramEventSource(
@@ -196,10 +202,130 @@ class TelegramChannel(Channel[TelegramEventSource]):
             return
 
         try:
-            await self._on_message(content, source)
+            attachments = await self._collect_attachments(message)
+        except MediaLoadError as exc:
+            logger.warning("Rejected Telegram media from %s: %s", source, exc)
+            await message.reply_text(str(exc))
+            return
+        except Exception:
+            logger.exception("Telegram media download failed")
+            await message.reply_text("Telegram file download failed.")
+            return
+
+        content = (message.text or message.caption or "").strip()
+        if not content and not attachments:
+            return
+
+        try:
+            await self._on_message(
+                ChannelMessage(
+                    content=content,
+                    source=source,
+                    attachments=attachments,
+                )
+            )
         except Exception:
             logger.exception("Telegram message callback failed")
             await message.reply_text("Agent processing failed.")
+
+    async def _collect_attachments(
+        self,
+        message: Message,
+    ) -> list[MessageAttachment]:
+        """Download supported Telegram media and return attachment metadata."""
+        if message.photo:
+            photo = message.photo[-1]
+            return [
+                await self._download_telegram_file(
+                    file_id=photo.file_id,
+                    file_size=photo.file_size,
+                    filename="telegram-photo.jpg",
+                    media_type="image/jpeg",
+                    kind="image",
+                    label="telegram photo",
+                )
+            ]
+
+        if message.document is not None:
+            document = message.document
+            return [
+                await self._download_telegram_file(
+                    file_id=document.file_id,
+                    file_size=document.file_size,
+                    filename=document.file_name,
+                    media_type=document.mime_type,
+                    kind="file",
+                    label="telegram document",
+                )
+            ]
+
+        if message.video is not None:
+            video = message.video
+            return [
+                await self._download_telegram_file(
+                    file_id=video.file_id,
+                    file_size=video.file_size,
+                    filename=getattr(video, "file_name", None) or "telegram-video.mp4",
+                    media_type=video.mime_type,
+                    kind="video",
+                    label="telegram video",
+                )
+            ]
+
+        if message.audio is not None:
+            audio = message.audio
+            return [
+                await self._download_telegram_file(
+                    file_id=audio.file_id,
+                    file_size=audio.file_size,
+                    filename=audio.file_name,
+                    media_type=audio.mime_type,
+                    kind="audio",
+                    label="telegram audio",
+                )
+            ]
+
+        if message.voice is not None:
+            voice = message.voice
+            return [
+                await self._download_telegram_file(
+                    file_id=voice.file_id,
+                    file_size=voice.file_size,
+                    filename="telegram-voice.ogg",
+                    media_type=voice.mime_type,
+                    kind="audio",
+                    label="telegram voice",
+                )
+            ]
+
+        return []
+
+    async def _download_telegram_file(
+        self,
+        *,
+        file_id: str,
+        file_size: int | None,
+        filename: str | None,
+        media_type: str | None,
+        kind: str,
+        label: str,
+    ) -> MessageAttachment:
+        """Download one Telegram file into the media store."""
+        if self._application is None:
+            raise RuntimeError("Telegram channel is not running")
+
+        if file_size is not None:
+            self.media_store.ensure_size_allowed(file_size, label=label)
+
+        telegram_file = await self._application.bot.get_file(file_id)
+        data = await telegram_file.download_as_bytearray()
+        return await self.media_store.save_bytes(
+            data,
+            filename=filename,
+            media_type=media_type,
+            kind=kind,
+            namespace="telegram",
+        )
 
     async def _shutdown(self) -> None:
         """Shutdown Telegram application resources."""
@@ -225,3 +351,14 @@ class TelegramChannel(Channel[TelegramEventSource]):
             return [""]
 
         return [content[i : i + limit] for i in range(0, len(content), limit)]
+
+    @staticmethod
+    def _message_filter():
+        return (
+            filters.TEXT
+            | filters.PHOTO
+            | filters.Document.ALL
+            | filters.VIDEO
+            | filters.AUDIO
+            | filters.VOICE
+        )

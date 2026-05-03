@@ -158,14 +158,18 @@ class ContextConfig(BaseModel):
 
 
 class MediaConfig(BaseModel):
-    """Outbound media loading policy."""
+    """Media loading and storage policy."""
 
-    local_roots: list[Path] = Field(default_factory=list)
-    max_size_mb: int = Field(default=30, ge=1)
+    model_config = ConfigDict(extra="forbid")
 
-    @field_validator("local_roots", mode="before")
+    outbound_local_roots: list[Path] = Field(default_factory=list)
+    outbound_max_size_mb: int = Field(default=30, ge=1)
+    store_path: Path = Field(default=Path(".media"))
+    inbound_max_size_mb: int = Field(default=30, ge=1)
+
+    @field_validator("outbound_local_roots", mode="before")
     @classmethod
-    def local_roots_must_be_list(cls, value: Any) -> list[Any]:
+    def outbound_local_roots_must_be_list(cls, value: Any) -> list[Any]:
         if value is None:
             return []
         if isinstance(value, str | Path):
@@ -173,8 +177,12 @@ class MediaConfig(BaseModel):
         return value
 
     @property
-    def max_size_bytes(self) -> int:
-        return self.max_size_mb * 1024 * 1024
+    def outbound_max_size_bytes(self) -> int:
+        return self.outbound_max_size_mb * 1024 * 1024
+
+    @property
+    def inbound_max_size_bytes(self) -> int:
+        return self.inbound_max_size_mb * 1024 * 1024
 
 
 class ChannelConfig(BaseModel):
@@ -251,10 +259,12 @@ class Config(BaseModel):
             if not path.is_absolute():
                 setattr(self, field_name, self.workspace / path)
 
-        self.media.local_roots = [
+        self.media.outbound_local_roots = [
             path if path.is_absolute() else self.workspace / path
-            for path in self.media.local_roots
+            for path in self.media.outbound_local_roots
         ]
+        if not self.media.store_path.is_absolute():
+            self.media.store_path = self.workspace / self.media.store_path
         return self
 
     def template_vars(self) -> dict[str, str]:

@@ -1,5 +1,8 @@
 """Agent worker for executing agent jobs."""
 import asyncio
+import base64
+
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .heartbeat import is_heartbeat_ok
@@ -11,6 +14,7 @@ from runtime.events import (
     InboundEvent,
     OutboundEvent,
 )
+from runtime.media import MessageAttachment
 from provider.llm.base import Message
 from utils.def_loader import DefNotFoundError
 
@@ -18,6 +22,38 @@ if TYPE_CHECKING:
     from core.agent_loader import AgentDef
 
 AgentWorkEvent = InboundEvent | DispatchEvent
+
+
+def _format_attachment(
+    index: int,
+    attachment: MessageAttachment,
+) -> list[str]:
+    """Render one attachment as text for the agent."""
+    media_type = attachment.media_type or "unknown"
+    lines = [
+        f"{index}. {attachment.kind} {media_type} {attachment.display_name}",
+        f"   path: {attachment.path}",
+    ]
+    return lines
+
+
+def _image_attachment_part(attachment: MessageAttachment) -> dict | None:
+    """Return an OpenAI-compatible image content part for image attachments."""
+    if attachment.kind != "image":
+        return None
+
+    path = Path(attachment.path)
+    if not path.is_file():
+        return None
+
+    media_type = attachment.media_type or "image/jpeg"
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return {
+        "type": "image_url",
+        "image_url": {
+            "url": f"data:{media_type};base64,{encoded}",
+        },
+    }
 
 
 class AgentWorker(SubscriberWorker):
@@ -64,6 +100,7 @@ class AgentWorker(SubscriberWorker):
         lock = self._session_locks.setdefault(session_id, asyncio.Lock())
 
         heartbeat_snapshot: list[Message] | None = None
+        response_attachments: list[MessageAttachment] = []
         try:
             agent_def = self._route_agent_def(event)
             semaphore = self._get_or_create_semaphore(agent_def)
@@ -73,7 +110,8 @@ class AgentWorker(SubscriberWorker):
                     session = self._get_or_create_session(event, agent_def)
                     if self._should_prune_heartbeat_ok(event):
                         heartbeat_snapshot = list(session.state.messages)
-                    content = await self._run_command_or_chat(event.content, session)
+                    content = await self._run_command_or_chat(event, session)
+                    response_attachments = session.consume_response_attachments()
                     if heartbeat_snapshot is not None and is_heartbeat_ok(content):
                         session.state.replace_messages(
                             heartbeat_snapshot,
@@ -93,7 +131,7 @@ class AgentWorker(SubscriberWorker):
             await self._emit_response(event, "", error=str(exc))
             return
 
-        await self._emit_response(event, content)
+        await self._emit_response(event, content, attachments=response_attachments)
 
     @staticmethod
     def _should_prune_heartbeat_ok(event: AgentWorkEvent) -> bool:
@@ -148,15 +186,56 @@ class AgentWorker(SubscriberWorker):
 
     async def _run_command_or_chat(
         self,
-        content: str,
+        event: AgentWorkEvent,
         session: AgentSession,
     ) -> str:
         """Run slash commands in the command registry before chatting."""
+        content = event.content
         command_result = await self.context.command_registry.dispatch(content, session)
         if command_result is not None:
             return command_result
 
-        return await session.chat(content)
+        content = self._content_with_attachments(event)
+        return await session.chat(
+            content,
+            llm_content=self._llm_content_with_attachments(event, content),
+        )
+
+    @staticmethod
+    def _content_with_attachments(event: AgentWorkEvent) -> str:
+        """Append attachment metadata to content for text-only agent input."""
+        attachments = event.attachments
+        if not attachments:
+            return event.content
+
+        lines = ["[Attachments]"]
+        for index, attachment in enumerate(attachments, start=1):
+            lines.extend(_format_attachment(index, attachment))
+
+        attachment_block = "\n".join(lines)
+        content = event.content.strip()
+        if not content:
+            return attachment_block
+        return f"{content}\n\n{attachment_block}"
+
+    @staticmethod
+    def _llm_content_with_attachments(
+        event: AgentWorkEvent,
+        content: str,
+    ) -> object | None:
+        """Build OpenAI-compatible multimodal content for image attachments."""
+        image_parts = [
+            image_part
+            for attachment in event.attachments
+            if (image_part := _image_attachment_part(attachment)) is not None
+        ]
+        if not image_parts:
+            return None
+
+        return [
+            {"type": "text", "text": content},
+            *image_parts,
+        ]
 
     def _on_task_done(self, task: asyncio.Task[None]) -> None:
         """Cleanup finished executor tasks and log unexpected crashes."""
@@ -185,9 +264,11 @@ class AgentWorker(SubscriberWorker):
         self,
         event: AgentWorkEvent,
         content: str,
+        attachments: list[MessageAttachment] | None = None,
         error: str | None = None,
     ) -> None:
         """Emit response event with content."""
+        response_attachments = [] if error else (attachments or [])
         if isinstance(event, DispatchEvent):
             await self.context.eventbus.publish(
                 DispatchResultEvent(
@@ -195,6 +276,7 @@ class AgentWorker(SubscriberWorker):
                     content=content,
                     source=event.source,
                     request_id=event.request_id,
+                    attachments=response_attachments,
                     error=error,
                 )
             )
@@ -206,6 +288,7 @@ class AgentWorker(SubscriberWorker):
                 content=content,
                 source=event.source,
                 request_id=event.request_id,
+                attachments=response_attachments,
                 error=error,
             )
         )
