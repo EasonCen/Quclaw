@@ -196,6 +196,7 @@ class Event:
     source: EventSource
     request_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     timestamp: float = field(default_factory=time.time)
+    attachments: list[MessageAttachment] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize event to dictionary, including type."""
@@ -242,7 +243,6 @@ class OutboundEvent(Event):
 
     retry_count: int = 0
     error: str | None = None
-    attachments: list[MessageAttachment] = field(default_factory=list)
 
 @dataclass
 class DispatchEvent(Event):

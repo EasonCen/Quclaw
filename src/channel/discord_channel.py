@@ -8,7 +8,7 @@ from typing import Awaitable, Callable, Sequence
 
 import discord
 
-from channel.base import Channel
+from channel.base import Channel, ChannelMessage
 from runtime.events import EventSource
 from runtime.media import MessageAttachment
 from utils.config import DiscordConfig
@@ -56,7 +56,10 @@ class DiscordChannel(Channel[DiscordEventSource]):
         intents.message_content = True
 
         self._client = discord.Client(intents=intents)
-        self._on_message: Callable[[str, DiscordEventSource], Awaitable[None]] | None = None
+        self._on_message: Callable[
+            [ChannelMessage[DiscordEventSource]],
+            Awaitable[None],
+        ] | None = None
         self._shutdown_lock = asyncio.Lock()
         self._configure_handlers()
 
@@ -66,7 +69,7 @@ class DiscordChannel(Channel[DiscordEventSource]):
 
     async def run(
         self,
-        on_message: Callable[[str, DiscordEventSource], Awaitable[None]],
+        on_message: Callable[[ChannelMessage[DiscordEventSource]], Awaitable[None]],
     ) -> None:
         """Run the Discord client until stop() is called."""
         self._on_message = on_message
@@ -156,7 +159,7 @@ class DiscordChannel(Channel[DiscordEventSource]):
             return
 
         try:
-            await self._on_message(content, source)
+            await self._on_message(ChannelMessage(content=content, source=source))
         except Exception:
             logger.exception("Discord message callback failed")
             await message.channel.send("Agent processing failed.")

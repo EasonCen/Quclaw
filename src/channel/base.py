@@ -1,6 +1,7 @@
 """Abstract base class for channel implementations."""
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import Callable, Awaitable, Generic, TypeVar, Any, Sequence
 
 from runtime.events import EventSource
@@ -9,6 +10,15 @@ from utils.config import Config
 
 
 T = TypeVar("T", bound=EventSource)
+
+
+@dataclass
+class ChannelMessage(Generic[T]):
+    """Normalized inbound message emitted by a channel."""
+
+    content: str
+    source: T
+    attachments: list[MessageAttachment] = field(default_factory=list)
 
 
 class Channel(ABC, Generic[T]):
@@ -26,7 +36,10 @@ class Channel(ABC, Generic[T]):
         return False
 
     @abstractmethod
-    async def run(self, on_message: Callable[[str, T], Awaitable[None]]) -> None:
+    async def run(
+        self,
+        on_message: Callable[[ChannelMessage[T]], Awaitable[None]],
+    ) -> None:
         """Run the channel. Block until stop() is called."""
 
     @abstractmethod
@@ -59,6 +72,7 @@ class Channel(ABC, Generic[T]):
         from channel.telegram_channel import TelegramChannel
         from channel.discord_channel import DiscordChannel
         from channel.feishu_channel import FeishuChannel
+        from runtime.media import MediaStore
 
         channels: list["Channel[Any]"] = []
         channel_config = config.channels
@@ -66,7 +80,11 @@ class Channel(ABC, Generic[T]):
             return []
 
         if channel_config.telegram and channel_config.telegram.enabled:
-            channels.append(TelegramChannel(channel_config.telegram))
+            media_store = MediaStore(
+                root=config.media.store_path,
+                max_size_bytes=config.media.inbound_max_size_bytes,
+            )
+            channels.append(TelegramChannel(channel_config.telegram, media_store))
 
         if channel_config.discord and channel_config.discord.enabled:
             channels.append(DiscordChannel(channel_config.discord))

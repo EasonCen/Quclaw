@@ -14,7 +14,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from channel.base import Channel
+from channel.base import Channel, ChannelMessage
 from runtime.events import EventSource
 from runtime.media import MessageAttachment
 from utils.config import FeishuConfig
@@ -56,7 +56,10 @@ class FeishuChannel(Channel[FeishuEventSource]):
 
     def __init__(self, config: FeishuConfig):
         self.config = config
-        self._on_message: Callable[[str, FeishuEventSource], Awaitable[None]] | None = None
+        self._on_message: Callable[
+            [ChannelMessage[FeishuEventSource]],
+            Awaitable[None],
+        ] | None = None
         self._stop_event: asyncio.Event | None = None
         self._server: uvicorn.Server | None = None
         self._http: httpx.AsyncClient | None = None
@@ -70,7 +73,7 @@ class FeishuChannel(Channel[FeishuEventSource]):
 
     async def run(
         self,
-        on_message: Callable[[str, FeishuEventSource], Awaitable[None]],
+        on_message: Callable[[ChannelMessage[FeishuEventSource]], Awaitable[None]],
     ) -> None:
         """Run the Feishu event callback HTTP endpoint until stop() is called."""
         self._on_message = on_message
@@ -213,7 +216,7 @@ class FeishuChannel(Channel[FeishuEventSource]):
             return JSONResponse({"ok": True})
 
         try:
-            await self._on_message(content, source)
+            await self._on_message(ChannelMessage(content=content, source=source))
         except Exception:
             logger.exception("Feishu message callback failed")
             return JSONResponse({"error": "callback_failed"}, status_code=500)

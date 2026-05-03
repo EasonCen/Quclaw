@@ -9,7 +9,7 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.text import Text
 
-from channel.base import Channel
+from channel.base import Channel, ChannelMessage
 from runtime.events import CliEventSource
 from runtime.media import MessageAttachment
 
@@ -42,7 +42,7 @@ class CliChannel(Channel[CliEventSource]):
 
     async def run(
         self,
-        on_message: Callable[[str, CliEventSource], Awaitable[None]],
+        on_message: Callable[[ChannelMessage[CliEventSource]], Awaitable[None]],
     ) -> None:
         """Read terminal messages and publish them through the channel callback."""
         self._stop_event = asyncio.Event()
@@ -65,7 +65,7 @@ class CliChannel(Channel[CliEventSource]):
                     continue
 
                 self._reply_event = asyncio.Event()
-                await on_message(user_input, self.source)
+                await on_message(ChannelMessage(content=user_input, source=self.source))
                 await self._wait_for_reply()
         finally:
             if self._closed_event is not None:

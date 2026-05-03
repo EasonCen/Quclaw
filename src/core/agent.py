@@ -12,6 +12,8 @@ from core.context_guard import ContextGuard
 from runtime.events import EventSource
 from core.session_state import SessionState
 from provider.llm.base import LLMProvider, LLMToolCall, Message
+from runtime.media import MessageAttachment
+from tools.attach_file_tool import create_attach_file_tool
 from tools.base import tool_call_to_message
 from tools.post_message_tool import create_post_message_tool
 from tools.registry import ToolRegistry
@@ -71,6 +73,8 @@ class Agent:
             skill_tool = create_skill_tool(self.context.skill_loader)
             if skill_tool:
                 registry.register(skill_tool)
+
+        registry.register(create_attach_file_tool(self.context))
 
         if include_post_message:
             post_tool = create_post_message_tool(self.context)
@@ -183,6 +187,7 @@ class AgentSession:
     tools: ToolRegistry
     context_guard: ContextGuard
     started_at: datetime = field(default_factory=datetime.now)
+    _response_attachments: list[MessageAttachment] = field(default_factory=list)
 
     @property
     def session_id(self) -> str:
@@ -199,10 +204,21 @@ class AgentSession:
         """Delegate to state."""
         return self.agent.context
 
-    async def chat(self, message: str) -> str:
+    def add_response_attachment(self, attachment: MessageAttachment) -> None:
+        """Queue an attachment for the current agent reply."""
+        self._response_attachments.append(attachment)
+
+    def consume_response_attachments(self) -> list[MessageAttachment]:
+        """Return and clear attachments queued for the current reply."""
+        attachments = self._response_attachments
+        self._response_attachments = []
+        return attachments
+
+    async def chat(self, message: str, llm_content: object | None = None) -> str:
         """Send a message to the LLM and get a response."""
         user_msg: Message = {"role": "user", "content": message}
         self.state.add_message(user_msg)
+        user_message_index = len(self.state.messages) - 1
 
         tool_schemas = self.tools.get_tool_schemas() or None
 
@@ -211,8 +227,12 @@ class AgentSession:
                 self.state,
                 self.agent.llm,
             )
+            messages = self._build_messages_for_llm(
+                user_message_index,
+                llm_content,
+            )
             content, tool_calls = await self.agent.llm.chat(
-                self.state.build_messages(),
+                messages,
                 tools=tool_schemas,
             )
             assistant_msg: Message = {"role": "assistant", "content": content}
@@ -226,6 +246,32 @@ class AgentSession:
                 return content
 
             await self._handle_tool_calls(tool_calls)
+
+    def _build_messages_for_llm(
+        self,
+        user_message_index: int,
+        llm_content: object | None,
+    ) -> list[Message]:
+        """Build messages, optionally replacing this turn with multimodal input."""
+        messages = self.state.build_messages()
+        if llm_content is None:
+            return messages
+
+        state_message_count = len(self.state.messages)
+        offset = len(messages) - state_message_count
+        message_index = offset + user_message_index
+        if message_index < 0 or message_index >= len(messages):
+            return messages
+
+        message = messages[message_index]
+        if message.get("role") != "user":
+            return messages
+
+        messages[message_index] = {
+            **message,
+            "content": llm_content,
+        }
+        return messages
 
     async def _handle_tool_calls(
         self,

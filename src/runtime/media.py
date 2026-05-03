@@ -1,6 +1,10 @@
 """Media attachment model and local file loading helpers."""
 
+import asyncio
 import mimetypes
+import re
+import time
+import uuid
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -69,6 +73,81 @@ class MessageAttachment:
             media_type=detected_media_type,
             kind=kind or _kind_from_media_type(detected_media_type),
         )
+
+
+class MediaStore:
+    """Stores inbound media files and returns attachment metadata."""
+
+    def __init__(
+        self,
+        *,
+        root: Path,
+        max_size_bytes: int,
+    ) -> None:
+        self.root = root.resolve()
+        self.max_size_bytes = max_size_bytes
+
+    def ensure_size_allowed(self, size_bytes: int, *, label: str = "media") -> None:
+        """Validate media size before download or before persisting."""
+        if size_bytes <= self.max_size_bytes:
+            return
+
+        limit_mb = self.max_size_bytes / 1024 / 1024
+        raise MediaLoadError(f"{label} exceeds max media size: {limit_mb:.0f} MB")
+
+    async def save_bytes(
+        self,
+        data: bytes | bytearray | memoryview,
+        *,
+        filename: str | None = None,
+        media_type: str | None = None,
+        kind: str | None = None,
+        namespace: str = "inbound",
+    ) -> MessageAttachment:
+        """Save bytes to the media store without blocking the event loop."""
+        return await asyncio.to_thread(
+            self._save_bytes_sync,
+            data,
+            filename=filename,
+            media_type=media_type,
+            kind=kind,
+            namespace=namespace,
+        )
+
+    def _save_bytes_sync(
+        self,
+        data: bytes | bytearray | memoryview,
+        *,
+        filename: str | None = None,
+        media_type: str | None = None,
+        kind: str | None = None,
+        namespace: str = "inbound",
+    ) -> MessageAttachment:
+        payload = bytes(data)
+        self.ensure_size_allowed(len(payload))
+
+        display_name = _safe_filename(filename, media_type)
+        stored_name = f"{uuid.uuid4().hex}-{display_name}"
+        target_dir = self._target_dir(namespace)
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        target_path = (target_dir / stored_name).resolve()
+        if not _is_relative_to(target_path, self.root):
+            raise MediaLoadError("media target path is outside media store root")
+
+        target_path.write_bytes(payload)
+        return MessageAttachment.from_path(
+            target_path,
+            filename=display_name,
+            media_type=media_type,
+            kind=kind,
+        )
+
+    def _target_dir(self, namespace: str) -> Path:
+        safe_namespace = _safe_segment(namespace, fallback="inbound")
+        date_segment = time.strftime("%Y%m%d")
+        return (self.root / safe_namespace / date_segment).resolve()
+
 
 
 class MediaLoader:
@@ -176,9 +255,60 @@ def _kind_from_media_type(media_type: str | None) -> str:
     return "file"
 
 
+def _safe_filename(filename: str | None, media_type: str | None) -> str:
+    raw_name = Path(filename or "").name.strip()
+    if not raw_name:
+        raw_name = "media"
+
+    sanitized = re.sub(r"[^\w.\- ()\[\]]+", "_", raw_name).strip(" .")
+    if not sanitized:
+        sanitized = "media"
+
+    path = Path(sanitized)
+    if not path.suffix:
+        extension = mimetypes.guess_extension(media_type or "")
+        if extension:
+            sanitized = f"{sanitized}{extension}"
+
+    if Path(sanitized).stem.upper() in _WINDOWS_RESERVED_NAMES:
+        sanitized = f"media-{sanitized}"
+    return sanitized
+
+
+def _safe_segment(value: str, *, fallback: str) -> str:
+    sanitized = re.sub(r"[^\w.-]+", "_", value).strip(" .")
+    return sanitized or fallback
+
+
 def _is_relative_to(path: Path, root: Path) -> bool:
     try:
         path.relative_to(root)
         return True
     except ValueError:
         return False
+
+
+_WINDOWS_RESERVED_NAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    "COM1",
+    "COM2",
+    "COM3",
+    "COM4",
+    "COM5",
+    "COM6",
+    "COM7",
+    "COM8",
+    "COM9",
+    "LPT1",
+    "LPT2",
+    "LPT3",
+    "LPT4",
+    "LPT5",
+    "LPT6",
+    "LPT7",
+    "LPT8",
+    "LPT9",
+}
