@@ -254,7 +254,7 @@ class TelegramChannel(Channel[TelegramEventSource]):
                     file_size=document.file_size,
                     filename=document.file_name,
                     media_type=document.mime_type,
-                    kind="file",
+                    kind=None,
                     label="telegram document",
                 )
             ]
@@ -307,7 +307,7 @@ class TelegramChannel(Channel[TelegramEventSource]):
         file_size: int | None,
         filename: str | None,
         media_type: str | None,
-        kind: str,
+        kind: str | None,
         label: str,
     ) -> MessageAttachment:
         """Download one Telegram file into the media store."""
