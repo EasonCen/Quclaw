@@ -214,6 +214,10 @@ class AgentSession:
         self._response_attachments = []
         return attachments
 
+    def clear_response_attachments(self) -> None:
+        """Discard attachments queued for the current reply."""
+        self._response_attachments = []
+
     async def chat(self, message: str, llm_content: object | None = None) -> str:
         """Send a message to the LLM and get a response."""
         user_msg: Message = {"role": "user", "content": message}

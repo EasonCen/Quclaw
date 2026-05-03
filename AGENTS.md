@@ -31,15 +31,7 @@
 
 ## 当前目标
 
-媒体上传/发送能力落地：
-
-1. 普通 Agent 回复链路要支持附件输出，不只依赖 `post_message` cron 工具；`AgentWorker` 生成 `OutboundEvent` 时需要有明确的附件来源和传递路径。
-2. `DeliveryWorker` 发送附件时要避免失败重试导致文本或已成功附件重复发送；需要把文本发送、附件发送、ack/retry 的边界设计清楚。
-3. Telegram 入站要正确识别“作为 document 发送的图片/视频/音频”，不能固定当成 `file`，否则图片原图无法进入视觉模型。
-4. 带附件消息触发上下文压缩时，不能因为 `AgentSession.chat()` 里的 message index 变化导致 multimodal 内容静默降级成纯文本路径。
-5. 入站附件目前主要落在 Telegram 单条消息，后续要扩展 Discord、Feishu、WebSocket 的上传入口，并统一进入 `Event.attachments`。
-6. 图片注入 LLM 现在会同步读完整文件并 base64 放进请求，需要控制大图的事件循环阻塞、请求体膨胀和模型兼容性风险。
-
+[试用期员工主动离职场景最小流程配置题](./current_goal.md)
 
 ## 后面再做的（不用管）
 
