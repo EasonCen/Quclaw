@@ -190,19 +190,37 @@ class DeliveryWorker(SubscriberWorker):
         try:
             for chunk in chunks:
                 await self._deliver_with_retry(channel, chunk, source)
-            if attachments:
+        except Exception as exc:
+            self.logger.exception("Failed to deliver outbound text to %s", source)
+            self._schedule_retry(event, source, reason=str(exc))
+            return
+
+        for index, attachment in enumerate(attachments):
+            try:
                 await self._deliver_with_retry(
                     channel,
                     "",
                     source,
-                    attachments=attachments,
+                    attachments=[attachment],
                 )
-            self.logger.debug("Delivered outbound event to %s", source)
-            self._cancel_pending_retry(event)
-            self.context.eventbus.ack(event)
-        except Exception as exc:
-            self.logger.exception("Failed to deliver outbound event to %s", source)
-            self._schedule_retry(event, source, reason=str(exc))
+            except Exception as exc:
+                retry_event = replace(
+                    event,
+                    content="",
+                    attachments=attachments[index:],
+                )
+                self.logger.exception(
+                    "Failed to deliver outbound attachment %s/%s to %s",
+                    index + 1,
+                    len(attachments),
+                    source,
+                )
+                self._schedule_retry(retry_event, source, reason=str(exc))
+                self.context.eventbus.ack(event)
+                return
+
+        self._cancel_pending_retry(event)
+        self.context.eventbus.ack(event)
 
     def _resolve_delivery_source(self, event: OutboundEvent) -> EventSource:
         """Resolve the delivery source from session metadata, falling back to event."""

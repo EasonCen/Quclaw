@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from core.agent_loader import AgentDef
 
 AgentWorkEvent = InboundEvent | DispatchEvent
+AGENT_EXECUTION_ATTEMPTS = 2
 
 
 def _format_attachment(
@@ -101,6 +102,8 @@ class AgentWorker(SubscriberWorker):
 
         heartbeat_snapshot: list[Message] | None = None
         response_attachments: list[MessageAttachment] = []
+        session: AgentSession | None = None
+        content = ""
         try:
             agent_def = self._route_agent_def(event)
             semaphore = self._get_or_create_semaphore(agent_def)
@@ -110,8 +113,28 @@ class AgentWorker(SubscriberWorker):
                     session = self._get_or_create_session(event, agent_def)
                     if self._should_prune_heartbeat_ok(event):
                         heartbeat_snapshot = list(session.state.messages)
-                    content = await self._run_command_or_chat(event, session)
-                    response_attachments = session.consume_response_attachments()
+
+                    for attempt in range(1, AGENT_EXECUTION_ATTEMPTS + 1):
+                        try:
+                            content = await self._run_command_or_chat(event, session)
+                            response_attachments = (
+                                session.consume_response_attachments()
+                            )
+                            break
+                        except asyncio.CancelledError:
+                            session.clear_response_attachments()
+                            raise
+                        except Exception:
+                            if attempt >= AGENT_EXECUTION_ATTEMPTS:
+                                raise
+                            self.logger.warning(
+                                "Agent execution attempt %s failed for session %s; "
+                                "retrying once",
+                                attempt,
+                                session_id,
+                                exc_info=True,
+                            )
+
                     if heartbeat_snapshot is not None and is_heartbeat_ok(content):
                         session.state.replace_messages(
                             heartbeat_snapshot,
@@ -119,11 +142,17 @@ class AgentWorker(SubscriberWorker):
                             preserve_title=bool(heartbeat_snapshot),
                         )
         except asyncio.CancelledError:
+            if session is not None:
+                session.clear_response_attachments()
             raise
         except DefNotFoundError as exc:
+            if session is not None:
+                session.clear_response_attachments()
             await self._emit_response(event, "", error=str(exc))
             return
         except Exception as exc:
+            if session is not None:
+                session.clear_response_attachments()
             self.logger.exception(
                 "Agent execution failed for session %s",
                 session_id,
