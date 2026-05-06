@@ -50,6 +50,7 @@ dist/
 *~
 
 # Test / tooling caches
+.tmp/
 .benchmarks/
 .coverage
 .coverage.*

@@ -27,11 +27,12 @@ Standard cron format: `minute hour day month weekday`
 
 Examples:
 - `0 9 * * *` - Every day at 9:00 AM
+- `* * * * *` - Every minute
 - `*/30 * * * *` - Every 30 minutes
 - `0 0 * * 0` - Every Sunday at midnight
 
-Schedules must use exactly 5 fields. Keep the minimum granularity at 5 minutes
-or slower; `* * * * *` and `*/1 * * * *` are invalid for this project.
+Schedules must use exactly 5 fields. The minimum granularity is 1 minute;
+`* * * * *` and `*/1 * * * *` are valid for this project.
 
 ## One-Off Jobs
 

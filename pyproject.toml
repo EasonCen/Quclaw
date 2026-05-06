@@ -17,6 +17,7 @@ dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
     "croniter>=2.0.0",
+    "python-statemachine>=2.6,<4",
 ]
 
 [project.scripts]
@@ -26,6 +27,14 @@ quclaw = "cli.main:app"
 requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = [
+    ".tmp",
+    ".pytest_cache",
+    "pytest-cache-files-*",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = [
     "src/channel",
@@ -33,6 +42,7 @@ packages = [
     "src/core",
     "src/provider",
     "src/runtime",
+    "src/scenario",
     "src/server",
     "src/tools",
     "src/utils",
@@ -45,6 +55,7 @@ include = [
     "src/core",
     "src/provider",
     "src/runtime",
+    "src/scenario",
     "src/server",
     "src/tools",
     "src/utils",

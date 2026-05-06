@@ -1,0 +1,20 @@
+{
+  "pending_intents": {},
+  "role_sources": {
+    "employee": [
+      "platform-telegram:employee/8275917140"
+    ],
+    "hr": [
+      "platform-telegram:hr/8275917140"
+    ],
+    "tl": [
+      "platform-telegram:tl/8275917140"
+    ],
+    "ops": [
+      "platform-telegram:ops/8275917140"
+    ],
+    "admin": [
+      "platform-telegram:admin/8275917140"
+    ]
+  }
+}

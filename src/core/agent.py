@@ -17,6 +17,8 @@ from tools.attach_file_tool import create_attach_file_tool
 from tools.base import tool_call_to_message
 from tools.post_message_tool import create_post_message_tool
 from tools.registry import ToolRegistry
+from tools.scenario_notify_tool import create_scenario_notify_tool
+from tools.scenario_tool import create_scenario_tool
 from tools.skill_tools import create_skill_tool
 from tools.webread_tool import create_webread_tool
 from tools.websearch_tool import create_websearch_tool
@@ -57,7 +59,7 @@ class Agent:
         """Get token threshold from workspace configuration."""
         return self.context.config.context.token_threshold
 
-    def _build_tools(self, include_post_message: bool) -> ToolRegistry:
+    def _build_tools(self, source: EventSource) -> ToolRegistry:
         """Build a ToolRegistry with tools appropriate for the session."""
         registry = ToolRegistry.with_builtins()
 
@@ -75,8 +77,12 @@ class Agent:
                 registry.register(skill_tool)
 
         registry.register(create_attach_file_tool(self.context))
+        registry.register(create_scenario_tool(self.context))
+        scenario_notify_tool = create_scenario_notify_tool(self.context, source=source)
+        if scenario_notify_tool:
+            registry.register(scenario_notify_tool)
 
-        if include_post_message:
+        if source.is_cron:
             post_tool = create_post_message_tool(self.context)
             if post_tool:
                 registry.register(post_tool)
@@ -95,7 +101,7 @@ class Agent:
     ) -> "AgentSession":
         """Create a new conversation session for an event source."""
         session_id = session_id or uuid.uuid4().hex
-        tools = self._build_tools(include_post_message=source.is_cron)
+        tools = self._build_tools(source)
 
         # Create context guard for this session
         context_guard = ContextGuard(
@@ -153,7 +159,7 @@ class Agent:
         messages: list[Message] = [msg.to_message() for msg in history_messages]
 
         # Build tools for resumed session
-        tools = self._build_tools(include_post_message=session_source.is_cron)
+        tools = self._build_tools(session_source)
 
         # Create context guard
         context_guard = ContextGuard(

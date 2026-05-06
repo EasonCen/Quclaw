@@ -26,6 +26,9 @@
     "interval_minutes": 0,
     "agent": null
   },
+  "scenario": {
+    "reminder_interval_minutes": 1
+  },
   "websearch": {
     "enabled": false,
     "provider": "tavily",
@@ -58,10 +61,49 @@
     "enabled": false,
     "telegram": {
       "enabled": false,
-      "bot_token": "your-telegram-bot-token-here",
-      "allowed_user_ids": [
-        "123456789"
-      ]
+      "bots": {
+        "default": {
+          "bot_token": "your-telegram-bot-token-here",
+          "allowed_user_ids": [
+            "123456789"
+          ]
+        },
+        "employee": {
+          "enabled": false,
+          "bot_token": "your-employee-bot-token-here",
+          "allowed_user_ids": [
+            "123456789"
+          ]
+        },
+        "hr": {
+          "enabled": false,
+          "bot_token": "your-hr-bot-token-here",
+          "allowed_user_ids": [
+            "123456789"
+          ]
+        },
+        "tl": {
+          "enabled": false,
+          "bot_token": "your-tl-bot-token-here",
+          "allowed_user_ids": [
+            "123456789"
+          ]
+        },
+        "ops": {
+          "enabled": false,
+          "bot_token": "your-ops-bot-token-here",
+          "allowed_user_ids": [
+            "123456789"
+          ]
+        },
+        "admin": {
+          "enabled": false,
+          "bot_token": "your-admin-bot-token-here",
+          "allowed_user_ids": [
+            "123456789"
+          ]
+        }
+      }
     },
     "discord": {
       "enabled": false,
@@ -93,6 +135,27 @@
     "auth_token": null
   },
   "routing": {
-    "bindings": []
+    "bindings": [
+      {
+        "value": "platform-telegram:employee/.*",
+        "agent": "employee"
+      },
+      {
+        "value": "platform-telegram:hr/.*",
+        "agent": "hr"
+      },
+      {
+        "value": "platform-telegram:tl/.*",
+        "agent": "tl"
+      },
+      {
+        "value": "platform-telegram:ops/.*",
+        "agent": "ops"
+      },
+      {
+        "value": "platform-telegram:admin/.*",
+        "agent": "admin"
+      }
+    ]
   }
 }

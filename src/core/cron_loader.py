@@ -33,7 +33,7 @@ class CronDef(BaseModel):
     @field_validator("schedule")
     @classmethod
     def validate_cron(cls, value: str)-> str:
-        """Validate cron expression and enforce 5-minute minimum granularity."""
+        """Validate cron expression and enforce 1-minute minimum granularity."""
         parts = value.split()
         if len(parts) != 5:
             raise ValueError("Cron schedule must use 5 fields: minute hour day month weekday")
@@ -49,9 +49,9 @@ class CronDef(BaseModel):
             current = iterator.get_next(datetime)
             gap_minutes = (current - previous).total_seconds() / 60
 
-            if gap_minutes < 5:
+            if gap_minutes < 1:
                 raise ValueError(
-                    "Cron schedule must have a minimum granularity of 5 minutes."
+                    "Cron schedule must have a minimum granularity of 1 minute."
                 )
 
             previous = current

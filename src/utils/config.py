@@ -43,8 +43,20 @@ class LLMConfig(BaseModel):
         return v
 
 
-class TelegramConfig(BaseModel):
-    """Telegram platform configuration."""
+def _validate_telegram_bot_key(value: str) -> str:
+    """Validate a Telegram bot key used in platform source strings."""
+    bot_key = str(value).strip()
+    if not bot_key:
+        raise ValueError("telegram bot key must not be empty")
+    if any(char in bot_key for char in (":", "/")):
+        raise ValueError("telegram bot key must not contain ':' or '/'")
+    if bot_key.lstrip("-").isdigit():
+        raise ValueError("telegram bot key must not be numeric")
+    return bot_key
+
+
+class TelegramBotConfig(BaseModel):
+    """Single Telegram bot configuration."""
 
     enabled: bool = True
     bot_token: str
@@ -54,6 +66,63 @@ class TelegramConfig(BaseModel):
     @classmethod
     def allowed_user_ids_must_be_strings(cls, value: Any) -> list[str]:
         return coerce_id_list(value)
+
+
+class TelegramConfig(BaseModel):
+    """Telegram platform configuration."""
+
+    enabled: bool = True
+    bot_token: str | None = None
+    allowed_user_ids: list[str] = Field(default_factory=list)
+    bots: dict[str, TelegramBotConfig] = Field(default_factory=dict)
+
+    @field_validator("allowed_user_ids", mode="before")
+    @classmethod
+    def allowed_user_ids_must_be_strings(cls, value: Any) -> list[str]:
+        return coerce_id_list(value)
+
+    @field_validator("bots", mode="before")
+    @classmethod
+    def bots_must_be_mapping(cls, value: Any) -> dict[str, Any]:
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            raise ValueError("telegram.bots must be a mapping")
+        return value
+
+    @model_validator(mode="after")
+    def validate_bot_config(self) -> "TelegramConfig":
+        """Validate single-bot and multi-bot Telegram configuration."""
+        if self.enabled and not self.bot_token and not self.bots:
+            raise ValueError("telegram requires bot_token or bots when enabled")
+
+        normalized: dict[str, TelegramBotConfig] = {}
+        for raw_key, bot_config in self.bots.items():
+            bot_key = _validate_telegram_bot_key(raw_key)
+            normalized[bot_key] = bot_config
+
+        self.bots = normalized
+        if self.enabled and self.bots and not any(
+            bot_config.enabled for bot_config in self.bots.values()
+        ):
+            raise ValueError("telegram requires at least one enabled bot")
+        return self
+
+    @property
+    def normalized_bots(self) -> dict[str, TelegramBotConfig]:
+        """Return bot configs keyed by bot_key, including legacy config."""
+        if self.bots:
+            return dict(self.bots)
+        if self.bot_token is None:
+            return {}
+        return {
+            "default": TelegramBotConfig(
+                enabled=self.enabled,
+                bot_token=self.bot_token,
+                allowed_user_ids=self.allowed_user_ids,
+            )
+        }
+
 
 class DiscordConfig(BaseModel):
     """Discord platform configuration."""
@@ -218,6 +287,12 @@ class HeartbeatConfig(BaseModel):
     agent: str | None = None
 
 
+class ScenarioConfig(BaseModel):
+    """Scenario engine runtime knobs."""
+
+    reminder_interval_minutes: int = Field(default=1, ge=1)
+
+
 class Config(BaseModel):
     """Main configuration for step 03."""
 
@@ -238,6 +313,7 @@ class Config(BaseModel):
     channels: ChannelConfig = Field(default_factory=ChannelConfig)
     websocket: WebSocketConfig = Field(default_factory=WebSocketConfig)
     heartbeat: HeartbeatConfig = Field(default_factory=HeartbeatConfig)
+    scenario: ScenarioConfig = Field(default_factory=ScenarioConfig)
     sources: dict[str, SourceSessionConfig] = Field(default_factory=dict)
     routing: dict = Field(default_factory=lambda: {"bindings": []})
     default_delivery_source: str | None = None
